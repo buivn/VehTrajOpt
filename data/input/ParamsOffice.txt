@@ -1,0 +1,49 @@
+SceneName Office
+SceneOccupancyFile data/office.txt
+
+SceneGridNrDimsX 300
+SceneGridNrDimsY 500
+SceneGridMinX 0
+SceneGridMinY 0
+SceneGridMaxX 300
+SceneGridMaxY 500
+SceneObstaclesHeight 2
+SceneBoundaryHeight 2
+
+SnakeNrLinks 5
+SnakeLinkLength 2.0
+SnakeLinkWidth 1.5
+SnakeAttachDistance 0.01
+	    
+GoalX 146
+GoalY 108
+GoalRadius 2.0
+GoalNrSides 5
+
+SnakeStartX 87
+SnakeStartY 271
+
+PlannerMaxRuntime 1.0
+
+PlannerRegionsNrDimsX 64
+PlannerRegionsNrDimsY 64
+
+PlannerGuideSeparationDistance 5.0
+PlannerGuideWidth 3
+PlannerGuideBorderExtendBefore 4.0
+PlannerGuideBorderExtendAfter 4.0
+PlannerGuideReachDistance 1.5
+PlannerClearExponent 6
+PlannerClearMax 4
+PlannerUseRadix 1
+PlannerScaleRadix 1000000000000
+PlannerMaxCountExploreAbandon 50
+PlannerMaxCountFollowRetry 400
+PlannerMaxCountFollowAbandon 2000
+
+
+
+
+GraphicsTextureObstacles  textures/terrain2.ppm
+GraphicsResolutionX 1280
+GraphicsResolutionY 720

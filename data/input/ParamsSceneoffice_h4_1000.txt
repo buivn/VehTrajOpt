@@ -1,0 +1,6 @@
+SceneOccupancyFile data/office_h4_1000.txt
+SnakeStartX 196
+SnakeStartY 41
+GoalX 7
+GoalY 123
+ParamsExtraFile data/ParamsGeneral_h4.txt

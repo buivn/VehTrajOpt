@@ -1,0 +1,66 @@
+SceneName Scene2
+SceneObstaclesFile data/Scene2Obstacles.txt
+
+SceneGridNrDimsX 128
+SceneGridNrDimsY 128
+SceneGridMinX -40
+SceneGridMinY -40
+SceneGridMaxX 40
+SceneGridMaxY 40
+SceneObstaclesHeight 2
+SceneBoundaryHeight 2
+
+SnakeNrLinks 5
+SnakeLinkLength 1.0
+SnakeLinkWidth 0.8
+SnakeAttachDistance 0.01
+	    
+GoalX 34
+GoalY 34
+GoalRadius 3.0
+GoalNrSides 5
+
+PlannerRunAsRRT 0
+PlannerMaxRuntime 1.0
+
+PlannerGuideSeparationDistance -1
+PlannerGuideWidth 4.0
+PlannerGuideBorderExtendBefore 3.0
+PlannerGuideBorderExtendAfter 3.0
+PlannerGuideReachDistance 1.5
+PlannerClearExponent 6
+PlannerClearMax 5
+PlannerUseRadix 1
+PlannerScaleRadix 1000000
+PlannerMaxCountExploreAbandon 50
+PlannerMaxCountFollowRetry 400
+PlannerMaxCountFollowAbandon 2000
+
+PlannerRegionsNrDimsX 48
+PlannerRegionsNrDimsY 48
+
+SnakeStartX -33
+SnakeStartY -30
+
+
+GraphicsCameraMove 0.5
+GraphicsCameraEyeX 0.000000 
+GraphicsCameraEyeY -131.129914 
+GraphicsCameraEyeZ 118.178658
+GraphicsCameraCenterX 0.000000 
+GraphicsCameraCenterY 0.000000 
+GraphicsCameraCenterZ 0.000000
+GraphicsCameraRightX 1.000000 
+GraphicsCameraRightY 0.000000 
+GraphicsCameraRightZ 0.000000
+GraphicsCameraForwardX 0.000000 
+GraphicsCameraForwardY 0.731354 
+GraphicsCameraForwardZ -0.681998
+GraphicsTextureObstacles  textures/terrain2.ppm
+GraphicsResolutionX 1280
+GraphicsResolutionY 720
+GraphicsPerspectiveFarPlane 10000
+GraphicsPerspectiveNearPlane 1
+GraphicsFontSizeX 2
+GraphicsFontSizeY 2
+GraphicsFontSizeZ 3

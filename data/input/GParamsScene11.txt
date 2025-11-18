@@ -1,0 +1,59 @@
+SceneObstaclesFile data/scene11/Scene11_Frac20_0Obstacles.txt
+SnakeStartX 30.486204
+SnakeStartY -36.933859
+SnakeStartTrailer0Theta -0.425561
+SnakeStartTrailer1Theta -0.377280
+SnakeStartTrailer2Theta -0.271898
+SnakeStartTrailer3Theta -0.165881
+SnakeStartTrailer4Theta -0.088477
+SnakeStartTrailer5Theta -0.042249
+SnakeStartTrailer6Theta -0.018366
+SnakeStartTrailer7Theta -0.007354
+SnakeStartTrailer8Theta -0.002736
+SnakeStartTrailer9Theta -0.000952
+
+GoalX -32.154725
+GoalY 35.505171
+
+
+SensorRadius 50
+
+SceneGridNrDimsX 128
+SceneGridNrDimsY 128
+SceneGridMinX -40
+SceneGridMinY -40
+SceneGridMaxX 40
+SceneGridMaxY 40
+SceneObstaclesHeight 2
+SceneBoundaryHeight 2
+
+SnakeNrLinks 9
+SnakeLinkLength 1.0
+SnakeLinkWidth 0.6
+SnakeAttachDistance 0.01
+	    
+GoalRadius 3.0
+GoalNrSides 5
+
+
+PlannerRunAsMethod FP
+PlannerMaxRuntime 2.0
+
+PlannerGuideSeparationDistance -1.0
+PlannerGuideWidth 2.0
+PlannerGuideBorderExtendBefore 3.0
+PlannerGuideBorderExtendAfter 3.0
+PlannerGuideReachDistance 2.0
+PlannerClearExponent 6
+PlannerClearMax 5
+PlannerUseRadix 1
+PlannerScaleRadix 1000000
+PlannerMaxCountExploreAbandon 50
+PlannerMaxCountFollowRetry 400
+PlannerMaxCountFollowAbandon 2000
+PlannerMinClearAcceptHint 1.0
+PlannerRegionsNrDimsX 48
+PlannerRegionsNrDimsY 48
+
+
+ParamsExtraFile data/ParamsGraphics.txt

@@ -1,0 +1,6 @@
+SceneObstaclesFile data/scene12/Scene12_Dims12_17Obstacles.txt
+SnakeStartX 7.309333
+SnakeStartY -36.111701
+GoalX 6.197109
+GoalY 34.495676
+ParamsExtraFile data/ParamsGeneralScene12.txt

@@ -1,0 +1,46 @@
+SceneObstaclesFile data/sceneRings/SceneRings_Gap2_1Obstacles.txt
+
+SceneGridNrDimsX 128
+SceneGridNrDimsY 128
+SceneGridMinX -40
+SceneGridMinY -40
+SceneGridMaxX 40
+SceneGridMaxY 40
+SceneObstaclesHeight 2
+SceneBoundaryHeight 2
+
+SnakeNrLinks 5
+SnakeLinkLength 1.0
+SnakeLinkWidth 0.8
+SnakeAttachDistance 0.01
+	    
+GoalX 0
+GoalY 0
+GoalRadius 3.0
+GoalNrSides 5
+
+
+SnakeStartX -30
+SnakeStartY -37
+
+PlannerRunAsRRT 1
+PlannerMaxRuntime 1.0
+
+PlannerGuideSeparationDistance -1
+PlannerGuideWidth 2.0
+PlannerGuideBorderExtendBefore 3.0
+PlannerGuideBorderExtendAfter 3.0
+PlannerGuideReachDistance 2.0
+PlannerClearExponent 6
+PlannerClearMax 5
+PlannerUseRadix 1
+PlannerScaleRadix 1000000000000
+PlannerMaxCountExploreAbandon 50
+PlannerMaxCountFollowRetry 400
+PlannerMaxCountFollowAbandon 2000
+
+PlannerRegionsNrDimsX 48
+PlannerRegionsNrDimsY 48
+
+
+ParamsExtraFile data/ParamsGraphics.txt

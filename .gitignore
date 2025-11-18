@@ -1,0 +1,25 @@
+CMakeFiles/*
+build/*
+bin/*
+results/scene5/*
+results/scene6/*
+results/scene8/*
+results/scene9/*
+results/scene10/*
+results/May15/*
+# *.egg-info/*
+# pybind11
+# *.pyc
+.vscode/*
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+*.cmake
+*.odt
+*.puml
+*.pdf
+data/testingEnv/*
+results/log_file.txt
+results/collision_cresults/scene5/*
+results/scene6/*heck2.txt
+```

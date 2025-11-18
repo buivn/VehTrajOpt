@@ -1,0 +1,58 @@
+SceneName Office
+SceneOccupancyFile data/partial_map.txt
+
+SceneGridNrDimsX 500
+SceneGridNrDimsY 300
+SceneGridMinX 0
+SceneGridMinY 0
+SceneGridMaxX 500
+SceneGridMaxY 300
+SceneObstaclesHeight 2
+SceneBoundaryHeight 2
+
+SnakeNrLinks 5
+SnakeLinkLength 2.0
+SnakeLinkWidth 1.5
+SnakeAttachDistance 0.01
+	    
+GoalX 212
+GoalY 123
+GoalRadius 2.0
+GoalNrSides 5
+
+SnakeStartX 377.5089858302215
+SnakeStartY 82.82563574511356
+SnakeStartTheta  0.12377744660830022
+SnakeStartVelocity 1.5400213403123175
+SnakeStartSteer -0.6419525509893995
+SnakeStartTrailer0Theta 0.7984416941295498
+SnakeStartTrailer1Theta 1.35920316826942
+SnakeStartTrailer2Theta 1.519577736717388
+SnakeStartTrailer3Theta 1.2968827645931167
+SnakeStartTrailer4Theta 0.8672723219739985
+
+
+PlannerMaxRuntime 1.0
+
+PlannerRegionsNrDimsX 64
+PlannerRegionsNrDimsY 64
+
+PlannerGuideSeparationDistance 5.0
+PlannerGuideWidth 2.0
+PlannerGuideBorderExtendBefore 4.0
+PlannerGuideBorderExtendAfter 4.0
+PlannerGuideReachDistance 1.5
+PlannerClearExponent 6
+PlannerClearMax 10
+PlannerUseRadix 1
+PlannerScaleRadix 1000000000000
+PlannerMaxCountExploreAbandon 50
+PlannerMaxCountFollowRetry 400
+PlannerMaxCountFollowAbandon 2000
+
+
+
+
+GraphicsTextureObstacles  textures/terrain2.ppm
+GraphicsResolutionX 720
+GraphicsResolutionY 940

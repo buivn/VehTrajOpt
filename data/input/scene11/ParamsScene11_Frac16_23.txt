@@ -1,0 +1,6 @@
+SceneObstaclesFile data/scene11/Scene11_Frac16_23Obstacles.txt
+SnakeStartX -17.316171
+SnakeStartY -36.154192
+GoalX 15.512851
+GoalY 35.725780
+ParamsExtraFile data/ParamsGeneralScene11.txt

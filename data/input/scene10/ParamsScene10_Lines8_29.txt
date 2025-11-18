@@ -1,0 +1,6 @@
+SceneObstaclesFile data/scene10/Scene10_Lines8_29Obstacles.txt
+SnakeStartX -10.347043
+SnakeStartY -37.922977
+GoalX 1.466097
+GoalY 33.246017
+ParamsExtraFile data/ParamsGeneralScene10.txt

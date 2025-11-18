@@ -1,0 +1,52 @@
+SceneOccupancyFile data/sceneMIT/floor_plan_n93.txt
+SnakeStartX 124
+SnakeStartY 332
+GoalX 285
+GoalY 150
+
+
+SceneGridNrDimsX 326
+SceneGridNrDimsY 412
+SceneGridMinX 0
+SceneGridMinY 0
+SceneGridMaxX 326
+SceneGridMaxY 412
+SceneObstaclesHeight 2
+SceneBoundaryHeight 2
+
+SnakeNrLinks 9
+SnakeLinkLength 2.0
+SnakeLinkWidth 1.5
+SnakeAttachDistance 0.01
+
+
+GoalRadius 2
+GoalNrSides 5
+
+PlannerRunAsMethod FP
+PlannerMaxRuntime 2.0
+
+PlannerGuideSeparationDistance -1
+PlannerGuideWidth 2.0
+PlannerGuideBorderExtendBefore 4.0
+PlannerGuideBorderExtendAfter 4.0
+PlannerGuideReachDistance 1.5
+PlannerClearExponent 6
+PlannerClearMax 4
+PlannerUseRadix 1
+PlannerScaleRadix 100000
+PlannerMaxCountExploreAbandon 50
+PlannerMaxCountFollowRetry 400
+PlannerMaxCountFollowAbandon 2000
+PlannerMinClearAcceptHint 1.0
+PlannerRegionsNrDimsX 64
+PlannerRegionsNrDimsY 64
+
+
+ParamsExtraFile data/ParamsGraphics.txt
+
+GraphicsResolutionX 1290
+GraphicsResolutionY 720
+
+GraphicsResolutionX2 720
+GraphicsResolutionY2 720

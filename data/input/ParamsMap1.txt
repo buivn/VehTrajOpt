@@ -1,0 +1,58 @@
+SceneName Office
+SceneOccupancyFile data/map_exploration1_transposed.txt
+
+SceneGridNrDimsX 144
+SceneGridNrDimsY 188
+SceneGridMinX 0
+SceneGridMinY 0
+SceneGridMaxX 144
+SceneGridMaxY 188
+SceneObstaclesHeight 2
+SceneBoundaryHeight 2
+
+SnakeNrLinks 5
+SnakeLinkLength 2.0
+SnakeLinkWidth 1.5
+SnakeAttachDistance 0.01
+	    
+GoalX 0
+GoalY 0
+GoalRadius 2.0
+GoalNrSides 5
+
+SnakeStartX 103.1540602745983
+SnakeStartY 97.409649085446
+SnakeStartTheta  -0.9179726520047425
+SnakeStartVelocity 1.3407715790758972
+SnakeStartSteer 0.04894496541169502
+SnakeStartTrailer0Theta -0.5617886366349135
+SnakeStartTrailer1Theta -0.2017568961110276
+SnakeStartTrailer2Theta -0.048930508905085206
+SnakeStartTrailer3Theta -0.009012399470777706
+SnakeStartTrailer4Theta -0.0013390748841815832
+
+
+PlannerMaxRuntime 1.0
+
+PlannerRegionsNrDimsX 64
+PlannerRegionsNrDimsY 64
+
+PlannerGuideSeparationDistance 5.0
+PlannerGuideWidth 2.0
+PlannerGuideBorderExtendBefore 4.0
+PlannerGuideBorderExtendAfter 4.0
+PlannerGuideReachDistance 1.5
+PlannerClearExponent 6
+PlannerClearMax 10
+PlannerUseRadix 1
+PlannerScaleRadix 1000000000000
+PlannerMaxCountExploreAbandon 50
+PlannerMaxCountFollowRetry 400
+PlannerMaxCountFollowAbandon 2000
+
+
+
+
+GraphicsTextureObstacles  textures/terrain2.ppm
+GraphicsResolutionX 1280
+GraphicsResolutionY 720

@@ -1,0 +1,10 @@
+QueryInitMinX  -40.000000
+QueryInitMinY -40.000000
+QueryInitMaxX  40.000000
+QueryInitMaxY  -33.000000
+
+QueryGoalMinX  -40.000000
+QueryGoalMinY  33.000000
+QueryGoalMaxX  40.000000
+QueryGoalMaxY  40.000000
+

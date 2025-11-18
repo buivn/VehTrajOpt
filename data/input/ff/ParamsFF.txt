@@ -1,0 +1,44 @@
+SceneOccupancyFile data/ff/mfo.txt
+SnakeStartX 386
+SnakeStartY 86
+GoalX 359
+GoalY 70
+GoalRadius 2.0
+GoalNrSides 5
+
+SceneGridNrDimsX 500
+SceneGridNrDimsY 300
+SceneGridMinX 0
+SceneGridMinY 0
+SceneGridMaxX 500
+SceneGridMaxY 300
+SceneObstaclesHeight 2
+SceneBoundaryHeight 2
+
+SnakeNrLinks 5
+SnakeLinkLength 2.0
+SnakeLinkWidth 1.5
+SnakeAttachDistance 0.01
+	    
+
+PlannerRunAsMethod FP
+PlannerMaxRuntime 2.0
+
+PlannerGuideSeparationDistance -1.0
+PlannerGuideWidth 2.0
+PlannerGuideBorderExtendBefore 4.0
+PlannerGuideBorderExtendAfter 4.0
+PlannerGuideReachDistance 1.5
+PlannerClearExponent 6
+PlannerClearMax 4
+PlannerUseRadix 1
+PlannerScaleRadix 10000000
+PlannerMaxCountExploreAbandon 50
+PlannerMaxCountFollowRetry 400
+PlannerMaxCountFollowAbandon 2000
+PlannerMinClearAcceptHint 1.0
+PlannerRegionsNrDimsX 128
+PlannerRegionsNrDimsY 128
+
+
+ParamsExtraFile data/ParamsGraphics.txt

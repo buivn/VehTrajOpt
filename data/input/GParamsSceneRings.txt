@@ -1,0 +1,60 @@
+SceneObstaclesFile data/sceneRings/SceneRings_Gap4_1Obstacles.txt
+
+SnakeStartX 28.937542
+SnakeStartY -31.286141
+SnakeStartTrailer0Theta 0.773471
+SnakeStartTrailer1Theta 0.752779
+SnakeStartTrailer2Theta 1.164894
+SnakeStartTrailer3Theta 1.986571
+SnakeStartTrailer4Theta 2.601132
+SnakeStartTrailer5Theta 2.830914
+SnakeStartTrailer6Theta 2.900377
+SnakeStartTrailer7Theta 2.865535
+SnakeStartTrailer8Theta 2.651393
+SnakeStartTrailer9Theta 2.089342
+
+
+GoalX 0.811175
+GoalY 1.168215
+
+SensorRadius 50
+
+SceneGridNrDimsX 128
+SceneGridNrDimsY 128
+SceneGridMinX -40
+SceneGridMinY -40
+SceneGridMaxX 40
+SceneGridMaxY 40
+SceneObstaclesHeight 2
+SceneBoundaryHeight 2
+
+SnakeNrLinks 9
+SnakeLinkLength 1.0
+SnakeLinkWidth 0.6
+SnakeAttachDistance 0.01
+	    
+GoalRadius 3.0
+GoalNrSides 5
+
+
+PlannerRunAsMethod FP
+PlannerMaxRuntime 2.0
+
+PlannerGuideSeparationDistance -1.0
+PlannerGuideWidth 2.0
+PlannerGuideBorderExtendBefore 3.0
+PlannerGuideBorderExtendAfter 3.0
+PlannerGuideReachDistance 2.0
+PlannerClearExponent 6
+PlannerClearMax 5
+PlannerUseRadix 1
+PlannerScaleRadix 1000000
+PlannerMaxCountExploreAbandon 50
+PlannerMaxCountFollowRetry 400
+PlannerMaxCountFollowAbandon 2000
+PlannerMinClearAcceptHint 1.0
+PlannerRegionsNrDimsX 64
+PlannerRegionsNrDimsY 64
+
+
+ParamsExtraFile data/ParamsGraphics.txt

@@ -1,0 +1,51 @@
+SceneOccupancyFile data/sceneOffice/office_h6_3024.txt
+SnakeStartX 536
+SnakeStartY 316
+GoalX 536
+GoalY 230
+
+SceneGridNrDimsX 700
+SceneGridNrDimsY 500
+SceneGridMinX 0
+SceneGridMinY 0
+SceneGridMaxX 700
+SceneGridMaxY 500
+SceneObstaclesHeight 2
+SceneBoundaryHeight 2
+
+SnakeNrLinks 9
+SnakeLinkLength 1.0
+SnakeLinkWidth 0.6
+SnakeAttachDistance 0.01
+
+
+GoalRadius 2
+GoalNrSides 5
+
+PlannerRunAsMethod FP
+PlannerMaxRuntime 2.0
+
+PlannerGuideSeparationDistance -1
+PlannerGuideWidth 2.0
+PlannerGuideBorderExtendBefore 4.0
+PlannerGuideBorderExtendAfter 4.0
+PlannerGuideReachDistance 1.5
+PlannerClearExponent 5
+PlannerClearMax 4
+PlannerUseRadix 1
+PlannerScaleRadix 100000
+PlannerMaxCountExploreAbandon 50
+PlannerMaxCountFollowRetry 400
+PlannerMaxCountFollowAbandon 2000
+PlannerMinClearAcceptHint 1.0
+PlannerRegionsNrDimsX 128
+PlannerRegionsNrDimsY 128
+
+
+ParamsExtraFile data/ParamsGraphics.txt
+
+GraphicsResolutionX 1728
+GraphicsResolutionY 720
+
+GraphicsResolutionX2 720
+GraphicsResolutionY2 720

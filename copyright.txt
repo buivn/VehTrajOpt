@@ -1,0 +1,9 @@
+/*
+ * Copyright (C) 2024 Hoang-Dung Bui
+ * All Rights Reserved
+ * 
+ *   Created by Hoang-Dung Bui
+ *
+ * Code should not be distributed or used without written permission
+ * from the copyright holder.
+ */
