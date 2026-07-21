@@ -1,0 +1,8 @@
+# ros_gz_bridge: only the topics not already owned by gz_ros2_control.
+# (cmd_vel, odom, joint_states, TF are handled by the ros2_control stack.)
+
+- ros_topic_name: "/clock"
+  gz_topic_name: "/clock"
+  ros_type_name: "rosgraph_msgs/msg/Clock"
+  gz_type_name: "gz.msgs.Clock"
+  direction: GZ_TO_ROS

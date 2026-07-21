@@ -1,0 +1,100 @@
+<?xml version="1.0"?>
+<!-- Differential-drive mobile robot: Phase 0 toolchain-validation platform. -->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="diffbot">
+
+  <xacro:arg name="use_sim" default="true"/>
+
+  <!-- ================= geometry / mass params ================= -->
+  <xacro:property name="base_len"   value="0.40"/>
+  <xacro:property name="base_wid"   value="0.30"/>
+  <xacro:property name="base_hei"   value="0.12"/>
+  <xacro:property name="base_mass"  value="5.0"/>
+
+  <xacro:property name="wheel_radius"     value="0.08"/>
+  <xacro:property name="wheel_width"      value="0.04"/>
+  <xacro:property name="wheel_mass"       value="0.5"/>
+  <xacro:property name="wheel_separation" value="0.34"/>
+  <xacro:property name="wheel_zoff"       value="0.02"/>
+
+  <!-- ================= inertia macros ================= -->
+  <xacro:macro name="box_inertia" params="m x y z">
+    <inertial>
+      <mass value="${m}"/>
+      <inertia ixx="${m*(y*y+z*z)/12.0}" ixy="0" ixz="0"
+               iyy="${m*(x*x+z*z)/12.0}" iyz="0"
+               izz="${m*(x*x+y*y)/12.0}"/>
+    </inertial>
+  </xacro:macro>
+
+  <xacro:macro name="cyl_inertia" params="m r l">
+    <inertial>
+      <mass value="${m}"/>
+      <inertia ixx="${m*(3*r*r+l*l)/12.0}" ixy="0" ixz="0"
+               iyy="${m*(3*r*r+l*l)/12.0}" iyz="0"
+               izz="${m*r*r/2.0}"/>
+    </inertial>
+  </xacro:macro>
+
+  <!-- ================= base ================= -->
+  <link name="base_footprint"/>
+
+  <link name="base_link">
+    <visual>
+      <geometry><box size="${base_len} ${base_wid} ${base_hei}"/></geometry>
+      <material name="steel"><color rgba="0.4 0.45 0.5 1"/></material>
+    </visual>
+    <collision>
+      <geometry><box size="${base_len} ${base_wid} ${base_hei}"/></geometry>
+    </collision>
+    <xacro:box_inertia m="${base_mass}" x="${base_len}" y="${base_wid}" z="${base_hei}"/>
+  </link>
+
+  <joint name="base_joint" type="fixed">
+    <parent link="base_footprint"/>
+    <child  link="base_link"/>
+    <origin xyz="0 0 ${wheel_radius + wheel_zoff}"/>
+  </joint>
+
+  <!-- ================= drive wheels ================= -->
+  <xacro:macro name="wheel" params="prefix side_y">
+    <link name="${prefix}_wheel">
+      <visual>
+        <origin rpy="1.5708 0 0"/>
+        <geometry><cylinder radius="${wheel_radius}" length="${wheel_width}"/></geometry>
+        <material name="rubber"><color rgba="0.1 0.1 0.1 1"/></material>
+      </visual>
+      <collision>
+        <origin rpy="1.5708 0 0"/>
+        <geometry><cylinder radius="${wheel_radius}" length="${wheel_width}"/></geometry>
+      </collision>
+      <xacro:cyl_inertia m="${wheel_mass}" r="${wheel_radius}" l="${wheel_width}"/>
+    </link>
+
+    <joint name="${prefix}_wheel_joint" type="continuous">
+      <parent link="base_link"/>
+      <child  link="${prefix}_wheel"/>
+      <origin xyz="0 ${side_y} ${-wheel_zoff}"/>
+      <axis xyz="0 1 0"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:wheel prefix="left"  side_y="${ wheel_separation/2}"/>
+  <xacro:wheel prefix="right" side_y="${-wheel_separation/2}"/>
+
+  <!-- ================= caster (passive) ================= -->
+  <link name="caster">
+    <visual><geometry><sphere radius="${wheel_radius*0.6}"/></geometry></visual>
+    <collision><geometry><sphere radius="${wheel_radius*0.6}"/></geometry></collision>
+    <xacro:cyl_inertia m="0.2" r="${wheel_radius*0.6}" l="0.02"/>
+  </link>
+  <joint name="caster_joint" type="fixed">
+    <parent link="base_link"/>
+    <child  link="caster"/>
+    <origin xyz="${base_len/2 - wheel_radius} 0 ${-wheel_zoff - wheel_radius*0.4}"/>
+  </joint>
+
+  <!-- ================= ros2_control + Gazebo ================= -->
+  <xacro:include filename="$(find vto_description)/urdf/mobile/diffbot.ros2_control.xacro"/>
+  <xacro:include filename="$(find vto_description)/urdf/mobile/diffbot.gazebo.xacro"/>
+
+</robot>

@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <!-- gz_ros2_control plugin: loads controllers from the controllers.yaml. -->
+  <gazebo>
+    <plugin filename="gz_ros2_control-system"
+            name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+      <parameters>$(find vto_description)/config/diffbot_controllers.yaml</parameters>
+    </plugin>
+  </gazebo>
+
+  <!-- Wheel friction so the diff drive actually grips the ground. -->
+  <gazebo reference="left_wheel">
+    <mu1>1.0</mu1> <mu2>1.0</mu2>
+  </gazebo>
+  <gazebo reference="right_wheel">
+    <mu1>1.0</mu1> <mu2>1.0</mu2>
+  </gazebo>
+  <gazebo reference="caster">
+    <mu1>0.0</mu1> <mu2>0.0</mu2>
+  </gazebo>
+</robot>
