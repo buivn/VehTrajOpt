@@ -195,3 +195,32 @@ docker system df                       # see docker disk usage
 | robot spawns but won't move | check `cmd_vel` remap; controllers `active`? (`ros2 control list_controllers`) |
 | Gazebo GUI black / no window | `xhost +local:root` not run, or `DISPLAY` not passed |
 | build artifacts owned by root | in-container colcon runs as root; `sudo rm -rf` them (they're gitignored) |
+
+---
+
+## Packaging: build → install → run (and deployment)
+
+`colcon build` does **build *and* install in one step** into three dirs:
+- `build/` — intermediate compile artifacts (throwaway)
+- `install/` — the **install space** you actually run from
+- `log/` — build logs
+
+Install layout per package (this is where things land):
+```
+install/<pkg>/lib/<pkg>/                         # node executables
+install/<pkg>/lib/                               # shared libs (.so)
+install/<pkg>/lib/python3.x/site-packages/<pkg>/ # python modules
+install/<pkg>/share/<pkg>/                       # launch, config, urdf, meshes, msgs
+```
+`source install/setup.bash` sets **`AMENT_PREFIX_PATH`** (ament index lookup) + `PATH`,
+`LD_LIBRARY_PATH`, `PYTHONPATH` so ROS finds it. Default prefix is the workspace
+`./install` (not `/var`); core ROS lives in `/opt/ros/jazzy`. In our container the repo
+is bind-mounted, so `install/` is both `/workspace/ros2_ws/install` (container) and
+`ros2_ws/install` (host, gitignored).
+
+- **`--symlink-install`** symlinks source into `install/` (edit launch/py/config, no
+  rebuild) — **dev only**. For a robot use a plain `colcon build` (real copies).
+- **Deploy to a Jetson:** ship the workspace + a `systemd` unit that sources
+  `install/setup.bash`; or build a `.deb` (bloom) into `/opt/ros/<distro>`; or a container.
+- **Container hardware access:** `--runtime nvidia` (GPU), `--device /dev/ttyUSB0` etc.
+  (lidar/camera/CAN), usually `--network host` (DDS discovery).

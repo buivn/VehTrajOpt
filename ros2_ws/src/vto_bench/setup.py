@@ -2,7 +2,7 @@ import glob
 
 from setuptools import find_packages, setup
 
-package_name = "vto_control"
+package_name = "vto_bench"
 
 setup(
     name=package_name,
@@ -17,13 +17,11 @@ setup(
     zip_safe=True,
     maintainer="Hoang-Dung Bui",
     maintainer_email="bui.hoangdungtn@gmail.com",
-    description="Path-tracking controllers: Pure Pursuit, MPC, MPPI.",
+    description="Controller/planner benchmark: goal-tour harness + metrics for the report.",
     license="TODO",
     entry_points={
         "console_scripts": [
-            "pure_pursuit = vto_control.pure_pursuit_node:main",
-            "mpc_controller = vto_control.mpc_controller_node:main",
-            "path_publisher = vto_control.path_publisher_node:main",
+            "benchmark = vto_bench.benchmark_node:main",
         ],
     },
 )

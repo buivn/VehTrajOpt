@@ -110,9 +110,11 @@ def build_world(width, height, corridor, wall_nominal, wall_h, seed, origin):
     oy = -height / 2.0 if origin == "center" else 0.0
 
     boxes = []
+    numeric = []  # world-frame (cx, cy, sx, sy) for rasterizing the occupancy map
 
     def add(cx, cy, sx, sy):
         boxes.append(box(cx + ox, cy + oy, sx, sy, wall_h, len(boxes)))
+        numeric.append((cx + ox, cy + oy, sx, sy))
 
     # perimeter (exact width x height)
     add(width / 2, ty / 2, width, ty)              # bottom
@@ -175,8 +177,79 @@ def build_world(width, height, corridor, wall_nominal, wall_h, seed, origin):
   </world>
 </sdf>
 """
-    meta = dict(nx=nx, ny=ny, tx=tx, ty=ty, boxes=len(boxes), spawn=spawn)
+    meta = dict(nx=nx, ny=ny, tx=tx, ty=ty, boxes=len(boxes), spawn=spawn,
+                numeric=numeric, ox=ox, oy=oy)
     return world, meta
+
+
+def rasterize(numeric, width, height, ox, oy, res):
+    """Rasterize wall boxes into a 2D occupancy image (row 0 = top = max y, the
+    ROS map_server convention). Returns a list[rows] of list[cols] of 0/100.
+
+    Fills per-box (only the cells each wall covers) rather than testing every cell
+    against every box -> fast even at 0.05 m resolution.
+    """
+    cols = int(round(width / res))
+    rows = int(round(height / res))
+    img = [[0] * cols for _ in range(rows)]  # 0 = free
+
+    def x_of(c):  # world x at column-center c
+        return ox + (c + 0.5) * res
+
+    def y_of(i):  # world y at image-row i (row 0 is top -> max y)
+        return oy + (rows - i - 0.5) * res
+
+    for (bcx, bcy, sx, sy) in numeric:
+        hx, hy = sx / 2.0, sy / 2.0
+        c0 = max(0, int((bcx - hx - ox) / res))
+        c1 = min(cols - 1, int((bcx + hx - ox) / res))
+        # higher y -> smaller image row, so top edge (bcy+hy) gives the min row
+        i0 = max(0, int((oy + rows * res - (bcy + hy)) / res) - 1)
+        i1 = min(rows - 1, int((oy + rows * res - (bcy - hy)) / res) + 1)
+        for i in range(i0, i1 + 1):
+            y = y_of(i)
+            if not (bcy - hy <= y <= bcy + hy):
+                continue
+            for c in range(c0, c1 + 1):
+                if bcx - hx <= x_of(c) <= bcx + hx:
+                    img[i][c] = 100  # occupied
+    return img
+
+
+def write_map(map_out, img, res, ox, oy):
+    """Write a ROS map_server pair: <map_out>.pgm (P5) + <map_out>.yaml.
+
+    PGM values: 0 = occupied (black), 254 = free (white). With negate=0 and the
+    default thresholds, map_server reads white as free and black as occupied.
+    """
+    base = map_out[:-5] if map_out.endswith(".yaml") else map_out
+    pgm_path, yaml_path = base + ".pgm", base + ".yaml"
+    rows, cols = len(img), len(img[0])
+
+    header = f"P5\n{cols} {rows}\n255\n".encode("ascii")
+    pixels = bytearray(rows * cols)
+    for i in range(rows):
+        row = img[i]
+        off = i * cols
+        for c in range(cols):
+            pixels[off + c] = 0 if row[c] >= 50 else 254
+    with open(pgm_path, "wb") as f:
+        f.write(header)
+        f.write(pixels)
+
+    import os
+    yaml = (
+        f"image: {os.path.basename(pgm_path)}\n"
+        f"mode: trinary\n"
+        f"resolution: {res}\n"
+        f"origin: [{ox:.4f}, {oy:.4f}, 0.0]\n"
+        f"negate: 0\n"
+        f"occupied_thresh: 0.65\n"
+        f"free_thresh: 0.25\n"
+    )
+    with open(yaml_path, "w") as f:
+        f.write(yaml)
+    return pgm_path, yaml_path, rows, cols
 
 
 def main():
@@ -190,6 +263,10 @@ def main():
     ap.add_argument("--origin", choices=["center", "corner"], default="center",
                     help="center: maze centered on world origin; corner: bottom-left at (0,0)")
     ap.add_argument("--out", default="maze.sdf")
+    ap.add_argument("--map-out", default=None,
+                    help="also emit a ROS occupancy map here (e.g. ../maps/maze.yaml)")
+    ap.add_argument("--map-res", type=float, default=0.05,
+                    help="occupancy map resolution in m/cell (default 0.05)")
     a = ap.parse_args()
 
     world, meta = build_world(a.width, a.height, a.corridor, a.wall, a.wall_height,
@@ -199,6 +276,14 @@ def main():
     print(f"wrote {a.out}: grid {meta['nx']}x{meta['ny']}, "
           f"walls tx={meta['tx']:.3f} ty={meta['ty']:.3f}, "
           f"{meta['boxes']} boxes, spawn~({meta['spawn'][0]:.2f},{meta['spawn'][1]:.2f})")
+
+    if a.map_out:
+        img = rasterize(meta["numeric"], a.width, a.height,
+                        meta["ox"], meta["oy"], a.map_res)
+        pgm, yaml, rows, cols = write_map(a.map_out, img, a.map_res,
+                                          meta["ox"], meta["oy"])
+        print(f"wrote {pgm} + {yaml}: {cols}x{rows} cells @ {a.map_res} m, "
+              f"origin=({meta['ox']:.2f},{meta['oy']:.2f})")
 
 
 if __name__ == "__main__":

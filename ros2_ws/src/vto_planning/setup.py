@@ -1,8 +1,6 @@
-import glob
-
 from setuptools import find_packages, setup
 
-package_name = "vto_control"
+package_name = "vto_planning"
 
 setup(
     name=package_name,
@@ -11,19 +9,16 @@ setup(
     data_files=[
         ("share/ament_index/resource_index/packages", ["resource/" + package_name]),
         ("share/" + package_name, ["package.xml"]),
-        ("share/" + package_name + "/launch", glob.glob("launch/*.launch.py")),
     ],
     install_requires=["setuptools"],
     zip_safe=True,
     maintainer="Hoang-Dung Bui",
     maintainer_email="bui.hoangdungtn@gmail.com",
-    description="Path-tracking controllers: Pure Pursuit, MPC, MPPI.",
+    description="Global planners: A* (grid search) now; Hybrid A* / C++ bridge later.",
     license="TODO",
     entry_points={
         "console_scripts": [
-            "pure_pursuit = vto_control.pure_pursuit_node:main",
-            "mpc_controller = vto_control.mpc_controller_node:main",
-            "path_publisher = vto_control.path_publisher_node:main",
+            "astar_planner = vto_planning.astar_planner_node:main",
         ],
     },
 )

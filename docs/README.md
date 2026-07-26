@@ -17,6 +17,15 @@ to get asked, with short answers.
 | 04 | [Environment setup: Docker + GPU + GUI](04-environment-setup.md) | Driver vs CUDA, snap vs Docker Engine, docker group/socket, nvidia-container-toolkit, X11 GUI |
 | 05 | [Pure Pursuit](05-pure-pursuit.md) | Geometric path following: lookahead, curvature `κ=2y/Ld²`, TwistStamped `/cmd_vel`, limitations vs MPC/MPPI |
 | 06 | [Maze environment](06-maze-environment.md) | Procedural 20×30 maze, exact 1.5 m corridors, recursive-backtracker, SDF generation |
+| 07 | [A\* global planner (design)](07-astar-global-planner.md) | Planner vs controller, grid A\*, `f=g+h`, admissibility, clearance cost, the `vto_planning` design |
+| 08 | [QoS, frames & callbacks](08-ros2-qos-frames-and-callbacks.md) | Reliability vs durability, the three origins (map/grid/odom), poor-man's localization, callback triggering |
+| 09 | [Integration launch, lifecycle & map_server](09-integration-launch-lifecycle-and-map-server.md) | maze_astar.launch.py, lifecycle nodes + lifecycle_manager, static map→odom TF, why launch order is free |
+| 10 | [Planning for the body & robust following](10-planning-for-the-body-and-robust-following.md) | C-space inflation, hard vs soft clearance, adaptive lookahead + turn-in-place + curvature slowdown, odom drift |
+| 11 | [Localization with AMCL](11-localization-amcl.md) | map↔odom two-link chain, why sim odom drifts, particle filter (predict/update/resample), KLD-sampling, AMCL vs EKF |
+| 12 | [Map-frame refactor](12-map-frame-refactor.md) | Why AMCL did nothing until the loop moved to the map frame; planner+follower read `map→base` via TF; frame gotchas |
+| 13 | [MPC controller (design)](13-mpc-controller.md) | Receding horizon, unicycle model, N-step reference window, CasADi+IPOPT, tracking/effort/comfort costs, MPC vs Pure Pursuit vs MPPI |
+| 14 | [Benchmarking controllers](14-benchmarking.md) | The 7 metrics, goal-tour vs teleport, the `vto_bench` harness, compute-time publishing, how to run + analyze |
+| — | [Trajectory Optimization report](report/trajectory-optimization-report.md) | Living comparison: planners (A\*, sampling) × controllers (Pure Pursuit, MPC, MPPI) — metrics + results |
 | — | [Commands cheatsheet](commands.md) | All build/run/drive/test/debug commands in one place |
 
 ## How we work

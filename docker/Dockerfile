@@ -50,6 +50,14 @@ ENV NVIDIA_DRIVER_CAPABILITIES=all
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
+RUN groupadd -g 992 render || true
+
+# --- Python deps for MPC ---------------------------------------------------
+# CasADi (nonlinear MPC modeling + autodiff; ships IPOPT). Late layer so a
+# rebuild only re-runs this step. Ubuntu 24.04 pip is PEP-668 externally-managed
+# -> --break-system-packages. numpy/scipy already come from the ROS desktop apt.
+RUN pip install --no-cache-dir --break-system-packages casadi
+
 WORKDIR /workspace
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["bash"]

@@ -4,7 +4,7 @@
   <name>vto_bringup</name>
   <version>0.0.1</version>
   <description>Top-level launch files that compose VehTrajOpt subsystems.</description>
-  <maintainer email="diaodu2@gobayro.com">bui1720</maintainer>
+  <maintainer email="bui.hoangdungtn@gmail.com">Hoang-Dung Bui</maintainer>
   <license>TODO</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>

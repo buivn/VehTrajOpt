@@ -41,7 +41,7 @@
   <link name="base_link">
     <visual>
       <geometry><box size="${base_len} ${base_wid} ${base_hei}"/></geometry>
-      <material name="steel"><color rgba="0.4 0.45 0.5 1"/></material>
+      <material name="robot_blue"><color rgba="0.1 0.35 0.85 1"/></material>
     </visual>
     <collision>
       <geometry><box size="${base_len} ${base_wid} ${base_hei}"/></geometry>
@@ -81,20 +81,42 @@
   <xacro:wheel prefix="left"  side_y="${ wheel_separation/2}"/>
   <xacro:wheel prefix="right" side_y="${-wheel_separation/2}"/>
 
-  <!-- ================= caster (passive) ================= -->
-  <link name="caster">
-    <visual><geometry><sphere radius="${wheel_radius*0.6}"/></geometry></visual>
-    <collision><geometry><sphere radius="${wheel_radius*0.6}"/></geometry></collision>
-    <xacro:cyl_inertia m="0.2" r="${wheel_radius*0.6}" l="0.02"/>
-  </link>
-  <joint name="caster_joint" type="fixed">
-    <parent link="base_link"/>
-    <child  link="caster"/>
-    <origin xyz="${base_len/2 - wheel_radius} 0 ${-wheel_zoff - wheel_radius*0.4}"/>
-  </joint>
+  <!-- ================= casters (passive, fore & aft) =================
+       Two ball casters symmetric about the drive-wheel axis (x=0) give a 4-point
+       base (2 drive wheels + 2 casters) so the body doesn't pitch under accel;
+       steadier normal load on the drive wheels -> less load-transfer slip. -->
+  <xacro:macro name="caster" params="prefix x">
+    <link name="${prefix}_caster">
+      <visual><geometry><sphere radius="${wheel_radius*0.6}"/></geometry></visual>
+      <collision><geometry><sphere radius="${wheel_radius*0.6}"/></geometry></collision>
+      <xacro:cyl_inertia m="0.2" r="${wheel_radius*0.6}" l="0.02"/>
+    </link>
+    <joint name="${prefix}_caster_joint" type="fixed">
+      <parent link="base_link"/>
+      <child  link="${prefix}_caster"/>
+      <origin xyz="${x} 0 ${-wheel_zoff - wheel_radius*0.4}"/>
+    </joint>
+  </xacro:macro>
+  <xacro:caster prefix="front" x="${  base_len/2 - wheel_radius}"/>
+  <xacro:caster prefix="rear"  x="${-(base_len/2 - wheel_radius)}"/>
 
   <!-- ================= ros2_control + Gazebo ================= -->
   <xacro:include filename="$(find vto_description)/urdf/mobile/diffbot.ros2_control.xacro"/>
+  <!-- ================= 2D lidar (Phase 2: AMCL localization) ================= -->
+  <link name="laser">
+    <visual>
+      <geometry><cylinder radius="0.035" length="0.04"/></geometry>
+      <material name="lidar_black"><color rgba="0.1 0.1 0.1 1"/></material>
+    </visual>
+    <collision><geometry><cylinder radius="0.035" length="0.04"/></geometry></collision>
+    <xacro:cyl_inertia m="0.1" r="0.035" l="0.04"/>
+  </link>
+  <joint name="laser_joint" type="fixed">
+    <parent link="base_link"/>
+    <child  link="laser"/>
+    <origin xyz="${base_len/2 - 0.06} 0 ${base_hei/2 + 0.02}"/>
+  </joint>
+
   <xacro:include filename="$(find vto_description)/urdf/mobile/diffbot.gazebo.xacro"/>
 
 </robot>
