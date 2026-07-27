@@ -25,6 +25,7 @@ to get asked, with short answers.
 | 12 | [Map-frame refactor](12-map-frame-refactor.md) | Why AMCL did nothing until the loop moved to the map frame; planner+follower read `map→base` via TF; frame gotchas |
 | 13 | [MPC controller (design)](13-mpc-controller.md) | Receding horizon, unicycle model, N-step reference window, CasADi+IPOPT, tracking/effort/comfort costs, MPC vs Pure Pursuit vs MPPI |
 | 14 | [Benchmarking controllers](14-benchmarking.md) | The 7 metrics, goal-tour vs teleport, the `vto_bench` harness, compute-time publishing, how to run + analyze |
+| 15 | [MPPI controller (design)](15-mppi-controller.md) | Sampling-based MPC, path-integral weighting, temperature λ, MPPI vs MPC (sample vs gradient), GPU parallelism, nonconvex costs |
 | — | [Trajectory Optimization report](report/trajectory-optimization-report.md) | Living comparison: planners (A\*, sampling) × controllers (Pure Pursuit, MPC, MPPI) — metrics + results |
 | — | [Commands cheatsheet](commands.md) | All build/run/drive/test/debug commands in one place |
 

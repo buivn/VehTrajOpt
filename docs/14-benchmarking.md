@@ -105,15 +105,21 @@ headless; MPC fails headless but not in the GUI.
 diagnostic measured **RTF ≈ 1.000** (sim not running fast) and **MPC `/cmd_vel` = 19.97 Hz**
 (control loop keeping up fine). So neither "sim too fast" nor "MPC can't keep up" holds.
 
-**Status: mechanism UNRESOLVED.** Two confident hypotheses (reverse; timing) both fell to
-cheap experiments. What's established: MPC is healthy in the GUI and in short headless
-snapshots (20 Hz, RTF 1); the failure only appeared in the **60-leg / ~90-min continuous
-headless sweep**, so it's likely **intermittent or cumulative over a long run**, not a
-per-tick property. Proper next step is to **reproduce it with full continuous
-instrumentation** (log `map→odom` jumps, `/cmd_vel` rate, compute, and AMCL state over the
-*entire* run) to catch the first divergence event — rather than reason from snapshots.
-For the report, use the **GUI** numbers (trustworthy) and run both controllers in the same
-mode.
+**Third experiment — MPPI headless (the informative one).** MPPI is the *same* kind of
+heavy predictive controller as MPC but ~10× cheaper per tick and, crucially, **spike-free**
+(constant ~3.6 ms sampling, std 0.04). Run on the *same headless sweep*, it stayed **clean:
+59/60, max pose jump 0.06 m** (vs MPC's 37 m). So:
+- headless + heavy predictive control is **not** inherently the problem (MPPI is fine),
+- the distinguishing factor is MPC's **occasional IPOPT compute spikes (200 ms+)**, not its
+  mean load (a 10 s snapshot showed MPC at 20 Hz / RTF 1 — the spikes are *intermittent*).
+
+**Leading conclusion (well-supported, not yet directly proven):** MPC's **intermittent
+solve spikes** momentarily gap the control loop; over a 90-min / 60-leg run these
+accumulate into an AMCL divergence, then cascade. MPPI (no spikes) and Pure Pursuit (µs)
+never gap, so both are headless-robust. **Direct confirmation** would still log `map→odom`
+jumps vs. per-tick solve time over a full run to catch a spike immediately preceding the
+first jump. For the report: Pure Pursuit + MPC use GUI numbers (MPC is headless-fragile);
+MPPI's headless numbers are trustworthy (it didn't diverge).
 
 **Lessons (these hold regardless of the final mechanism):**
 - Correlation ≠ causation — a rampant behavior (reverse) can be a *symptom* of the failure,

@@ -23,6 +23,7 @@ setup(
         "console_scripts": [
             "pure_pursuit = vto_control.pure_pursuit_node:main",
             "mpc_controller = vto_control.mpc_controller_node:main",
+            "mppi_controller = vto_control.mppi_controller_node:main",
             "path_publisher = vto_control.path_publisher_node:main",
         ],
     },

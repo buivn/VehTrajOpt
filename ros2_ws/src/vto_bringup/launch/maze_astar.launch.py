@@ -104,6 +104,11 @@ def generate_launch_description():
             LaunchConfiguration("mpc_v_min"), value_type=float)}],
         condition=IfCondition(EqualsSubstitution(controller, "mpc")),
     )
+    mppi = Node(
+        package="vto_control", executable="mppi_controller", name="mppi_controller",
+        output="screen", parameters=[sim_time],
+        condition=IfCondition(EqualsSubstitution(controller, "mppi")),
+    )
     # 7) RViz (skipped when headless).
     rviz = Node(
         package="rviz2", executable="rviz2", name="rviz2", output="screen",
@@ -114,8 +119,8 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument("headless", default_value="false"),
         DeclareLaunchArgument("controller", default_value="pursuit",
-                              description="follower: pursuit | mpc"),
+                              description="follower: pursuit | mpc | mppi"),
         DeclareLaunchArgument("mpc_v_min", default_value="0.0",
                               description="MPC min linear vel; -0.5 re-enables reverse (bug repro)"),
-        gazebo, map_server, lifecycle, amcl, astar, pure_pursuit, mpc, rviz,
+        gazebo, map_server, lifecycle, amcl, astar, pure_pursuit, mpc, mppi, rviz,
     ])

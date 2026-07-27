@@ -224,3 +224,47 @@ is bind-mounted, so `install/` is both `/workspace/ros2_ws/install` (container) 
   `install/setup.bash`; or build a `.deb` (bloom) into `/opt/ros/<distro>`; or a container.
 - **Container hardware access:** `--runtime nvidia` (GPU), `--device /dev/ttyUSB0` etc.
   (lidar/camera/CAN), usually `--network host` (DDS discovery).
+
+---
+
+## Controllers & benchmark (A\* + AMCL maze)
+
+**Drive the maze with a chosen follower** (GUI + RViz; send goals with RViz "2D Nav Goal"):
+```bash
+xhost +local:root                                               # host, once, for the GUI
+ros2 launch vto_bringup maze_astar.launch.py                    # Pure Pursuit (default)
+ros2 launch vto_bringup maze_astar.launch.py controller:=mpc    # MPC
+ros2 launch vto_bringup maze_astar.launch.py controller:=mppi   # MPPI
+```
+
+**Benchmark a controller** (auto-drives the seeded 30×2 goal tour → `results/<ctrl>_summary.csv`;
+same `seed` ⇒ identical tour, so runs are matched/comparable). See docs/14.
+```bash
+# GUI (matched-mode, trustworthy numbers — use these for the report):
+ros2 launch vto_bench bench.launch.py controller:=pursuit headless:=false
+ros2 launch vto_bench bench.launch.py controller:=mpc     headless:=false
+ros2 launch vto_bench bench.launch.py controller:=mppi    headless:=false
+# headless (faster, unattended — but MPC diverged headless, unresolved, docs/14 §6):
+ros2 launch vto_bench bench.launch.py controller:=mppi
+# scale / options:  num_legs:=100 repeats:=3 seed:=1 leg_min_dist:=10.0 leg_max_dist:=25.0
+```
+
+**Reproduce the MPC×AMCL divergence** (docs/14 §6): re-enable reverse and watch AMCL jump
+in RViz (`/particle_cloud`) vs the true robot in Gazebo.
+```bash
+ros2 launch vto_bringup maze_astar.launch.py controller:=mpc mpc_v_min:=-0.5   # bug
+ros2 launch vto_bringup maze_astar.launch.py controller:=mpc                   # fix (forward-only)
+```
+
+**Timing diagnostic** (headless RTF + `/cmd_vel` rate + solve spikes, MPC vs Pure Pursuit):
+```bash
+bash /workspace/ros2_ws/scripts/timing_diag.sh
+```
+
+**Controller-core unit tests** (host, no ROS/GUI):
+```bash
+python3 ros2_ws/src/vto_control/test/test_pursuit_core.py
+python3 ros2_ws/src/vto_control/test/test_mppi_core.py
+docker run --rm -v $HOME/projects/2026/VehTrajOpt:/workspace vehtrajopt:jazzy \
+  bash -lc 'python3 /workspace/ros2_ws/src/vto_control/test/test_mpc_core.py'   # MPC needs CasADi
+```

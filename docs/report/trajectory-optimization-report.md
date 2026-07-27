@@ -118,8 +118,40 @@ heavier per-tick solve.
 > so it's likely intermittent/cumulative (future work). The GUI numbers above are the
 > trustworthy ones.
 
-### 4.3 P1 A\* + C3 MPPI — ⬜ TODO
+### 4.3 P1 A\* + C3 MPPI — measured (headless, clean)
+| metric | MPPI (59/60 reached) |
+|---|---|
+| success rate | **98 %** (59/60) |
+| time-to-goal | 45.3 ± 17.5 s |
+| cross-track mean / max | 0.035 / 0.156 m |
+| len ratio | 0.942 |
+| mean \|ω\| | 0.359 rad/s |
+| min wall clearance | 0.378 m |
+| compute / tick | **3.6 ms** (spike-free, std 0.04) |
+
+Sampling-based control (K=1000 numpy rollouts). Slightly looser tracking than MPC/PP
+(3.5 cm — sampling noise), but nearly MPC's speed at **~6× less compute and no solve
+spikes**. Notably **ran clean headless** (max pose jump 0.06 m) where MPC diverged — see
+docs/14 §6; this is what points the headless failure at MPC's *compute spikes*.
+
 ### 4.4 P2 Sampling planner + {C1,C2,C3} — ⬜ TODO
+
+### 4.6 Three-way (A\* planner; PP+MPC in GUI, MPPI headless-clean)
+| metric | Pure Pursuit | MPC | MPPI |
+|--------|-------------|-----|------|
+| success | 58/60 | 59/60 | 59/60 |
+| time-to-goal (s) | 56.8 | **40.0** | 45.3 |
+| cross-track mean (m) | **0.024** | **0.024** | 0.035 |
+| cross-track max (m) | **0.109** | 0.168 | 0.156 |
+| min clearance (m) | **0.395** | 0.366 | 0.378 |
+| compute/tick (ms) | **0.069** | 22.65 | 3.6 |
+
+**Reading:** three points on a spectrum.
+- **Pure Pursuit** — cheapest (µs), tightest peaks, most clearance, smoothest; **slowest**.
+- **MPC** — **fastest** (preview), tight mean tracking; **heaviest + spiky compute**
+  (headless-fragile).
+- **MPPI** — nearly MPC's speed with **~6× less, spike-free compute** and no gradient
+  solver; pays with **looser tracking** (sampling noise). A practical middle ground.
 
 ### 4.5 Head-to-head: Pure Pursuit vs MPC (matched GUI tour, 58 legs both reached)
 Same map, same seed-1 goal tour, both in the GUI. **Bold = winner.**
@@ -199,3 +231,48 @@ python3 ros2_ws/src/vto_planning/test/test_astar.py
 python3 ros2_ws/src/vto_control/test/test_pursuit_core.py
 python3 ros2_ws/src/vto_bench/test/test_metrics.py
 ```
+
+---
+
+## 8. References
+
+*(Foundational works for the methods used; verify exact venue/year before formal citation.)*
+
+**Global planning**
+- P. E. Hart, N. J. Nilsson, B. Raphael, "A Formal Basis for the Heuristic Determination
+  of Minimum Cost Paths," *IEEE Trans. Systems Science and Cybernetics*, 1968. **(A\*)**
+- D. Dolgov, S. Thrun, et al., "Path Planning for Autonomous Vehicles in Unknown
+  Semi-structured Environments," *IJRR*, 2010. **(Hybrid A\*)**
+- T. Lozano-Pérez, "Spatial Planning: A Configuration Space Approach," *IEEE Trans.
+  Computers*, 1983. **(C-space inflation)**
+- S. M. LaValle, "Rapidly-Exploring Random Trees: A New Tool for Path Planning," TR, 1998;
+  S. Karaman, E. Frazzoli, "Sampling-based Algorithms for Optimal Motion Planning" (RRT\*),
+  *IJRR*, 2011. **(sampling planners — advisor's approach)**
+
+**Path-tracking control**
+- R. C. Coulter, "Implementation of the Pure Pursuit Path Tracking Algorithm,"
+  CMU-RI-TR-92-01, 1992. **(Pure Pursuit)**
+- J. B. Rawlings, D. Q. Mayne, M. Diehl, *Model Predictive Control: Theory, Computation,
+  and Design*, 2017. **(MPC)**
+- J. Andersson et al., "CasADi: a software framework for nonlinear optimization and
+  optimal control," *Math. Prog. Computation*, 2019; A. Wächter, L. Biegler, "On the
+  Implementation of an Interior-Point Filter Line-Search Algorithm…" (IPOPT), *Math.
+  Programming*, 2006. **(MPC solver stack)**
+- G. Williams, A. Aldrich, E. Theodorou, "Model Predictive Path Integral Control: From
+  Theory to Parallel Computation," *JGCD*, 2017; G. Williams et al., "Information-Theoretic
+  MPC…," *IEEE T-RO*, 2018. **(MPPI)**
+
+**Localization / SLAM**
+- S. Thrun, W. Burgard, D. Fox, *Probabilistic Robotics*, 2005. **(MCL, motion/measurement
+  models, likelihood field — the core text)**
+- F. Dellaert, D. Fox, W. Burgard, S. Thrun, "Monte Carlo Localization for Mobile Robots,"
+  *ICRA*, 1999; D. Fox, "Adapting the Sample Size in Particle Filters Through
+  KLD-Sampling," *IJRR*, 2003. **(MCL + the "adaptive" in AMCL)**
+- M. Montemerlo, S. Thrun, et al., "FastSLAM…," *AAAI*, 2002; G. Grisetti, C. Stachniss,
+  W. Burgard, "Improved Techniques for Grid Mapping with Rao-Blackwellized Particle
+  Filters," *IEEE T-RO*, 2007. **(FastSLAM / gmapping)**
+- W. Hess et al., "Real-Time Loop Closure in 2D LIDAR SLAM," *ICRA*, 2016 (Cartographer);
+  S. Macenski, I. Jambrecic, "SLAM Toolbox," *JOSS*, 2021. **(graph SLAM)**
+
+**System**
+- S. Macenski et al., "The Marathon 2: A Navigation System" (Nav2), *IROS*, 2020.
