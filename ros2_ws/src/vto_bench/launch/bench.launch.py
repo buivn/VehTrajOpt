@@ -20,7 +20,8 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(PathJoinSubstitution(
             [FindPackageShare("vto_bringup"), "launch", "maze_astar.launch.py"])),
         launch_arguments={"controller": controller,
-                          "headless": LaunchConfiguration("headless")}.items(),
+                          "headless": LaunchConfiguration("headless"),
+                          "mpc_v_min": LaunchConfiguration("mpc_v_min")}.items(),
     )
     benchmark = Node(
         package="vto_bench", executable="benchmark", name="benchmark", output="screen",
@@ -40,6 +41,7 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument("controller", default_value="pursuit"),
         DeclareLaunchArgument("headless", default_value="true"),
+        DeclareLaunchArgument("mpc_v_min", default_value="0.0"),
         DeclareLaunchArgument("num_legs", default_value="30"),
         DeclareLaunchArgument("repeats", default_value="2"),
         DeclareLaunchArgument("seed", default_value="1"),

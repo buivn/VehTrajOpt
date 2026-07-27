@@ -34,6 +34,7 @@ class MPCController(Node):
         self.declare_parameter("N", 20)
         self.declare_parameter("dt", 0.1)
         self.declare_parameter("v_max", 0.5)
+        self.declare_parameter("v_min", 0.0)   # 0 = forward-only (keeps AMCL stable)
         self.declare_parameter("w_max", 1.5)
         self.declare_parameter("dv_max", 0.15)
         self.declare_parameter("dw_max", 0.30)
@@ -58,7 +59,7 @@ class MPCController(Node):
         self.dt = gp("dt").value
         self.mpc = MPCCore(
             N=self.N, dt=self.dt,
-            v_max=gp("v_max").value, w_max=gp("w_max").value,
+            v_max=gp("v_max").value, v_min=gp("v_min").value, w_max=gp("w_max").value,
             dv_max=gp("dv_max").value, dw_max=gp("dw_max").value,
             q_pos=gp("q_pos").value, q_theta=gp("q_theta").value,
             r_v=gp("r_v").value, r_w=gp("r_w").value,

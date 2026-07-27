@@ -26,6 +26,7 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import (EqualsSubstitution, LaunchConfiguration,
                                    PathJoinSubstitution)
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
 
 # Robot spawn pose in the world = origin of the odom frame in the world.
@@ -96,7 +97,11 @@ def generate_launch_description():
     )
     mpc = Node(
         package="vto_control", executable="mpc_controller", name="mpc_controller",
-        output="screen", parameters=[sim_time],
+        output="screen",
+        # mpc_v_min:=-0.5 re-enables reverse to reproduce the AMCL-divergence bug (docs/14);
+        # default 0.0 = forward-only (the fix).
+        parameters=[sim_time, {"v_min": ParameterValue(
+            LaunchConfiguration("mpc_v_min"), value_type=float)}],
         condition=IfCondition(EqualsSubstitution(controller, "mpc")),
     )
     # 7) RViz (skipped when headless).
@@ -110,5 +115,7 @@ def generate_launch_description():
         DeclareLaunchArgument("headless", default_value="false"),
         DeclareLaunchArgument("controller", default_value="pursuit",
                               description="follower: pursuit | mpc"),
+        DeclareLaunchArgument("mpc_v_min", default_value="0.0",
+                              description="MPC min linear vel; -0.5 re-enables reverse (bug repro)"),
         gazebo, map_server, lifecycle, amcl, astar, pure_pursuit, mpc, rviz,
     ])

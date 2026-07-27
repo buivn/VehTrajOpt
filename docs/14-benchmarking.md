@@ -80,6 +80,111 @@ plot (e.g. cross-track vs. time through a corner).
 
 ---
 
+## 6. Finding: an MPC AMCL divergence — and a corrected diagnosis
+
+The first (**headless**) MPC sweep **failed on ~half the legs** (30/53 vs Pure Pursuit's
+58/60) with *physically impossible* metrics — cross-track 15 m, driven 8–40× planned,
+clearance 0. Per-tick traces showed the **pose estimate teleporting 37 m**: AMCL diverged
+and MPC then drove on a garbage pose. Not a real "MPC is worse" result.
+
+**First (WRONG) hypothesis — reverse causes it.** MPC reversed 30.7 % of ticks (Pure
+Pursuit 0 %); I concluded the backing-up/spinning stressed AMCL into diverging, and
+constrained MPC forward-only (`v_min=0`).
+
+**Disproof (a clean experiment).** Re-running the *identical* reverse-enabled MPC
+(`mpc_v_min:=-0.5`) **in the GUI** ran clean: **59/60 reached, 2.4 cm tracking, and only
+2.2 % reverse.** Same code, same bounds — so reverse was **not** the cause. The 30.7 % vs
+2.2 % reverse gap is the tell: a diverged/jumping pose makes MPC *think it overshot* and
+command reverse constantly, so **reverse was a *symptom* of divergence, not its cause**.
+Causality was backwards.
+
+**What actually differs: headless vs GUI, and it's MPC-specific.** Pure Pursuit is fine
+headless; MPC fails headless but not in the GUI.
+
+**Second hypothesis — compute/real-time starvation — also DISPROVEN.** A headless
+diagnostic measured **RTF ≈ 1.000** (sim not running fast) and **MPC `/cmd_vel` = 19.97 Hz**
+(control loop keeping up fine). So neither "sim too fast" nor "MPC can't keep up" holds.
+
+**Status: mechanism UNRESOLVED.** Two confident hypotheses (reverse; timing) both fell to
+cheap experiments. What's established: MPC is healthy in the GUI and in short headless
+snapshots (20 Hz, RTF 1); the failure only appeared in the **60-leg / ~90-min continuous
+headless sweep**, so it's likely **intermittent or cumulative over a long run**, not a
+per-tick property. Proper next step is to **reproduce it with full continuous
+instrumentation** (log `map→odom` jumps, `/cmd_vel` rate, compute, and AMCL state over the
+*entire* run) to catch the first divergence event — rather than reason from snapshots.
+For the report, use the **GUI** numbers (trustworthy) and run both controllers in the same
+mode.
+
+**Lessons (these hold regardless of the final mechanism):**
+- Correlation ≠ causation — a rampant behavior (reverse) can be a *symptom* of the failure,
+  not its cause. A cheap controlled experiment (flip one variable) beats a confident story.
+- Test controller + estimator **together, at scale**; and beware that **headless vs GUI can
+  change real-time behavior** — benchmark in the mode you'll trust the numbers from.
+- Pure Pursuit's microsecond compute is robust to timing; a heavy optimal controller (MPC)
+  must be shown to keep up under the *actual* run conditions.
+
+### What actually happened
+Not a code bug — an emergent, closed-loop system failure:
+```
+MPC allowed reverse (v∈[-0.5,0.5]) — used 30.7% of ticks + ~2× angular rate
+   → robot backs up / spins  ──(Gazebo physics)──► wheel SLIP
+       ├─ wheel odometry ≠ true motion  → AMCL motion model mispredicts
+       └─ scan changes fast between updates → scan-match ambiguous
+   → AMCL loses lock → jumps to a WRONG look-alike corridor (perceptual aliasing)
+       → pose estimate teleports 37 m
+   → MPC reads garbage pose → commands garbage → hits walls
+   → more slip/spin → AMCL worse → runaway → leg times out
+```
+
+### Why reversing/spinning breaks AMCL specifically
+AMCL (docs/11) has two engines; aggressive motion sabotages both:
+- **Motion model (odometry):** reversing / direction-changes / spinning cause **wheel
+  slip** (Gazebo simulates it faithfully), so the odometry delta AMCL propagates its
+  particles with no longer matches the true motion.
+- **Measurement model (scan match):** fast rotation makes the 10 Hz scan change a lot
+  between updates → matching to the map becomes ambiguous.
+- **Perceptual aliasing:** the maze's near-identical corridors mean that once the cloud
+  drifts, a *wrong* pose matches the scan just as well → the filter commits to a
+  look-alike corridor tens of metres away.
+
+### Why Pure Pursuit was immune
+Forward-only (`v ≥ 0`) + turn-in-place → smooth, predictable, mostly-forward motion →
+little slip, slow scan change → AMCL stays locked (58/60).
+
+### Why our earlier tests missed it
+- `mpc_core` test integrates the model with a **perfect pose** — no AMCL/physics; it's
+  **open-loop w.r.t. localization**, so reverse was harmless there.
+- The 3-leg smoke was too short; divergence is **statistical + cumulative** — 60 legs
+  over 90 min made it near-certain.
+- It only emerges **at scale, in closed loop, with the full stack**.
+
+### Root cause & fix
+Symmetric velocity bounds let the optimizer **exploit reverse** whenever it lowered the
+*tracking* cost (overshoot correction, 3-point turns) — nothing penalized
+localization-unfriendly motion (**cost/constraint misspecification**). **Fix:** constrain
+MPC **forward-only** (`v_min = 0`), matching Pure Pursuit. Next levers if spinning alone
+still stresses AMCL: soften angular aggressiveness (`r_w`/`s_w` up) or harden AMCL (more
+particles).
+
+### Reproduce it (watch it live)
+```bash
+# BUG (reverse enabled) — watch AMCL diverge in RViz vs the true robot in Gazebo:
+ros2 launch vto_bringup maze_astar.launch.py controller:=mpc mpc_v_min:=-0.5
+# FIX (forward-only, default):
+ros2 launch vto_bringup maze_astar.launch.py controller:=mpc
+```
+Send a faraway 2D Nav Goal; with reverse on, after some driving the **RViz robot +
+`/particle_cloud` jump to a wrong corridor** while the Gazebo robot is elsewhere.
+
+### Lesson (interview-grade)
+Controller and estimator form a feedback loop — test them **together, at scale**, not in
+isolation. "Worked offline/in-sim" validates a component, not the system. An optimizer
+exploits any unconstrained freedom, even motions that break other subsystems. And a
+**high-fidelity simulator (Gazebo's slip physics) is an asset** — it exposed a failure a
+perfect-odometry sim would have hidden until hardware.
+
+---
+
 ## Interview angle
 
 - **Q: How do you compare two controllers fairly?** Same map/goals/starts; identical

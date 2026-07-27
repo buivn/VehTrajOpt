@@ -21,7 +21,7 @@ def _wrap(angle):
 
 class MPCCore:
     def __init__(self, N=20, dt=0.1,
-                 v_max=0.5, w_max=1.5, dv_max=0.15, dw_max=0.30,
+                 v_max=0.5, v_min=0.0, w_max=1.5, dv_max=0.15, dw_max=0.30,
                  q_pos=10.0, q_theta=0.5,           # tracking weights
                  r_v=0.1, r_w=0.05,                 # effort weights
                  s_v=1.0, s_w=0.5,                  # comfort (rate) weights
@@ -63,7 +63,10 @@ class MPCCore:
         opti.subject_to(X[:, 0] == x0)
 
         # --- constraints: velocity + acceleration (rate) limits --------
-        opti.subject_to(opti.bounded(-v_max, U[0, :], v_max))
+        # v_min defaults to 0 (forward-only): allowing reverse makes the robot
+        # back up / oscillate, which stresses AMCL scan-matching into diverging
+        # (see docs/14) — Pure Pursuit is forward-only, so this matches it.
+        opti.subject_to(opti.bounded(v_min, U[0, :], v_max))
         opti.subject_to(opti.bounded(-w_max, U[1, :], w_max))
         for k in range(N):
             du = U[:, k] - (u_prev if k == 0 else U[:, k - 1])

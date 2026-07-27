@@ -40,6 +40,27 @@ Visualization Manager:
       Description Topic:
         Value: /robot_description
         Durability Policy: Transient Local
+    - Class: rviz_default_plugins/LaserScan
+      Name: LaserScan
+      Enabled: true
+      Topic:
+        Value: /scan
+        Reliability Policy: Best Effort
+      Size (m): 0.05
+      Color: 255; 0; 0
+    - Class: nav2_rviz_plugins/ParticleCloud
+      Name: AMCL Particles
+      Enabled: true
+      Topic:
+        Value: /particle_cloud
+        Durability Policy: Volatile
+      Color: 0; 180; 255
+    - Class: rviz_default_plugins/PoseWithCovariance
+      Name: AMCL Pose
+      Enabled: true
+      Topic:
+        Value: /amcl_pose
+        Durability Policy: Volatile
   Tools:
     - Class: rviz_default_plugins/MoveCamera
     - Class: rviz_default_plugins/SetGoal
