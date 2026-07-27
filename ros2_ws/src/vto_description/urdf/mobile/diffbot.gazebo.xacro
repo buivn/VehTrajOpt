@@ -1,0 +1,52 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <!-- gz_ros2_control plugin: loads controllers from the controllers.yaml. -->
+  <gazebo>
+    <plugin filename="gz_ros2_control-system"
+            name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+      <parameters>$(find vto_description)/config/diffbot_controllers.yaml</parameters>
+    </plugin>
+  </gazebo>
+
+  <!-- Wheel friction so the diff drive actually grips the ground. -->
+  <gazebo reference="left_wheel">
+    <mu1>1.0</mu1> <mu2>1.0</mu2>
+  </gazebo>
+  <gazebo reference="right_wheel">
+    <mu1>1.0</mu1> <mu2>1.0</mu2>
+  </gazebo>
+  <gazebo reference="front_caster">
+    <mu1>0.0</mu1> <mu2>0.0</mu2>
+  </gazebo>
+  <gazebo reference="rear_caster">
+    <mu1>0.0</mu1> <mu2>0.0</mu2>
+  </gazebo>
+
+  <!-- 2D lidar: gz publishes gz.msgs.LaserScan on gz topic /scan (bridged to ROS
+       /scan). gz_frame_id=laser so the scan's frame matches the URDF TF frame.
+       Needs the gz-sim-sensors-system plugin in the world (maze.sdf has it). -->
+  <gazebo reference="laser">
+    <sensor name="lidar" type="gpu_lidar">
+      <topic>scan</topic>
+      <update_rate>10</update_rate>
+      <always_on>1</always_on>
+      <visualize>true</visualize>
+      <gz_frame_id>laser</gz_frame_id>
+      <lidar>
+        <scan>
+          <horizontal>
+            <samples>360</samples>
+            <resolution>1</resolution>
+            <min_angle>-3.141592</min_angle>
+            <max_angle>3.141592</max_angle>
+          </horizontal>
+        </scan>
+        <range>
+          <min>0.15</min>
+          <max>12.0</max>
+          <resolution>0.01</resolution>
+        </range>
+      </lidar>
+    </sensor>
+  </gazebo>
+</robot>

@@ -1,0 +1,16 @@
+# ros_gz_bridge: only the topics not already owned by gz_ros2_control.
+# (cmd_vel, odom, joint_states, TF are handled by the ros2_control stack.)
+
+- ros_topic_name: "/clock"
+  gz_topic_name: "/clock"
+  ros_type_name: "rosgraph_msgs/msg/Clock"
+  gz_type_name: "gz.msgs.Clock"
+  direction: GZ_TO_ROS
+
+# 2D lidar for AMCL (Phase 2). gz_topic must match what `gz topic -l` shows for
+# the sensor; with <topic>scan</topic> on the sensor it is /scan.
+- ros_topic_name: "/scan"
+  gz_topic_name: "/scan"
+  ros_type_name: "sensor_msgs/msg/LaserScan"
+  gz_type_name: "gz.msgs.LaserScan"
+  direction: GZ_TO_ROS
