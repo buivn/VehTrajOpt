@@ -13,6 +13,7 @@ Usage:
   python3 generate_maze.py --width 20 --height 30 --corridor 1.5 --seed 7
 """
 import argparse
+import math
 
 
 def solve_grid(length, corridor, wall_nominal):
@@ -72,6 +73,118 @@ def carve(nx, ny, seed):
     return vwalls, hwalls
 
 
+def _cell_graph(nx, ny, vwalls, hwalls):
+    """Adjacency list over the (already-carved) cell grid: cell (i,j) ->
+    list of open neighbors, per the current vwalls/hwalls (walls that
+    remain closed)."""
+    adj = {(i, j): [] for i in range(nx) for j in range(ny)}
+    for i in range(nx):
+        for j in range(ny):
+            if i + 1 < nx and (i + 1, j) not in vwalls:
+                adj[(i, j)].append((i + 1, j))
+                adj[(i + 1, j)].append((i, j))
+            if j + 1 < ny and (i, j + 1) not in hwalls:
+                adj[(i, j)].append((i, j + 1))
+                adj[(i, j + 1)].append((i, j))
+    return adj
+
+
+def _bfs_dist(adj, source):
+    """Hop-count distance from `source` to every reachable cell (a perfect
+    maze is one connected component, so this covers the whole grid)."""
+    dist = {source: 0}
+    frontier = [source]
+    while frontier:
+        nxt = []
+        for cell in frontier:
+            d = dist[cell]
+            for nb in adj[cell]:
+                if nb not in dist:
+                    dist[nb] = d + 1
+                    nxt.append(nb)
+        frontier = nxt
+    return dist
+
+
+def carve_rooms(vwalls, hwalls, nx, ny, num_rooms, room_cells, min_sep_cells, seed):
+    """Open up `num_rooms` square blocks of `room_cells` x `room_cells` cells
+    into fully wall-free rooms -- large enough for the robot to turn freely
+    in any direction, so a forward-only planner is never trapped there
+    (docs/40/43) -- spread out by requiring each newly-chosen room's grid
+    (hop-count) distance to every already-chosen room exceed
+    `min_sep_cells`. Graph distance, not straight-line: a straight-line-far
+    pair can still be a short corridor hop apart if a wall between them was
+    carved away, which wouldn't satisfy "travel distance longer than a
+    threshold" the way it's actually meant.
+
+    Removing walls only ever ADDS connectivity to an already-fully-connected
+    spanning tree (docs/43), so this can't disconnect anything -- no need to
+    re-validate reachability after.
+
+    Returns (vwalls, hwalls, rooms) where rooms is a list of dicts
+    (anchor_i, anchor_j, cells, center_i, center_j) in cell-index units
+    (fractional cell coords for the center, since a block's center generally
+    isn't itself a cell).
+    """
+    vwalls, hwalls = set(vwalls), set(hwalls)
+    if num_rooms <= 0:
+        return vwalls, hwalls, []
+
+    adj = _cell_graph(nx, ny, vwalls, hwalls)
+    candidates = [(i, j) for i in range(nx - room_cells + 1)
+                  for j in range(ny - room_cells + 1)]
+
+    state = (seed * 2246822519 + 3266489917) & 0xFFFFFFFF
+
+    def rnd(n):
+        nonlocal state
+        state = (1103515245 * state + 12345) & 0x7FFFFFFF
+        return state % n
+
+    # shuffle candidates (Fisher-Yates with the same hand-rolled LCG carve()
+    # uses, for the same reproducibility-without-`random` reason)
+    for k in range(len(candidates) - 1, 0, -1):
+        m = rnd(k + 1)
+        candidates[k], candidates[m] = candidates[m], candidates[k]
+
+    def _blocks_touch_or_overlap(a1, a2, margin=2):
+        """True if the two room_cells-square blocks anchored at a1, a2 come
+        within `margin` grid cells of each other in BOTH axes -- i.e. close
+        enough that opening both would merge them into one blob (or leave
+        no real corridor between them). Two axis-aligned squares are safely
+        apart if they're separated by >= margin in AT LEAST ONE axis."""
+        x_gap = max(a1[0], a2[0]) - min(a1[0] + room_cells, a2[0] + room_cells)
+        y_gap = max(a1[1], a2[1]) - min(a1[1] + room_cells, a2[1] + room_cells)
+        return not (x_gap >= margin or y_gap >= margin)
+
+    chosen = []       # list of (anchor_i, anchor_j)
+    chosen_centers = []
+    for (ai, aj) in candidates:
+        if len(chosen) >= num_rooms:
+            break
+        if any(_blocks_touch_or_overlap((ai, aj), a) for a in chosen):
+            continue          # would merge with an already-chosen room -- skip
+        center = (ai, aj)   # BFS distance from the anchor cell is a fine proxy
+        dists = _bfs_dist(adj, center)
+        if all(dists.get(c, math.inf) >= min_sep_cells for c in chosen_centers):
+            chosen.append((ai, aj))
+            chosen_centers.append(center)
+
+    for (ai, aj) in chosen:
+        for i in range(ai, ai + room_cells):
+            for j in range(aj, aj + room_cells):
+                if i + 1 < ai + room_cells:
+                    vwalls.discard((i + 1, j))
+                if j + 1 < aj + room_cells:
+                    hwalls.discard((i, j + 1))
+
+    rooms = [dict(anchor_i=ai, anchor_j=aj, cells=room_cells,
+                  center_i=ai + (room_cells - 1) / 2.0,
+                  center_j=aj + (room_cells - 1) / 2.0)
+             for (ai, aj) in chosen]
+    return vwalls, hwalls, rooms
+
+
 def box(cx, cy, sx, sy, h, idx):
     z = h / 2.0
     return (
@@ -84,7 +197,8 @@ def box(cx, cy, sx, sy, h, idx):
     )
 
 
-def build_world(width, height, corridor, wall_nominal, wall_h, seed, origin):
+def build_world(width, height, corridor, wall_nominal, wall_h, seed, origin,
+                rooms=0, room_cells=3, room_min_sep_cells=6):
     nx, tx = solve_grid(width, corridor, wall_nominal)
     ny, ty = solve_grid(height, corridor, wall_nominal)
     px, py = corridor + tx, corridor + ty  # cell pitch
@@ -102,6 +216,8 @@ def build_world(width, height, corridor, wall_nominal, wall_h, seed, origin):
         return j * py + ty + corridor / 2.0
 
     vwalls, hwalls = carve(nx, ny, seed)
+    vwalls, hwalls, room_list = carve_rooms(vwalls, hwalls, nx, ny, rooms,
+                                            room_cells, room_min_sep_cells, seed)
 
     # origin "center" shifts the whole maze so its center sits on the world origin
     # (0,0) -> maze spans [-w/2, w/2] x [-h/2, h/2], convenient for the Gazebo view.
@@ -130,11 +246,20 @@ def build_world(width, height, corridor, wall_nominal, wall_h, seed, origin):
 
     spawn = (x_cell(0) + ox, y_cell(0) + oy)  # bottom-left free cell for the robot
 
+    room_size_m = room_cells * px - tx if room_list else 0.0
+    rooms_world = [(x_cell(r["center_i"]) + ox, y_cell(r["center_j"]) + oy)
+                  for r in room_list]
+    rooms_comment = ""
+    if rooms_world:
+        pts = "; ".join(f"({x:.2f},{y:.2f})" for x, y in rooms_world)
+        rooms_comment = (f"\n     {len(rooms_world)} open rooms, {room_size_m:.2f} m square, "
+                         f"centers: {pts}.")
+
     world = f"""<?xml version="1.0"?>
 <!-- Maze world: {width} x {height} m, corridor {corridor} m ({corridor/0.30:.1f}x robot width),
      walls {tx:.3f} m (x) / {ty:.3f} m (y), grid {nx} x {ny} cells, seed {seed}, origin={origin}.
      Generated by generate_maze.py (edit the generator, not this file).
-     Suggested robot spawn: x={spawn[0]:.2f} y={spawn[1]:.2f}. -->
+     Suggested robot spawn: x={spawn[0]:.2f} y={spawn[1]:.2f}.{rooms_comment} -->
 <sdf version="1.9">
   <world name="maze">
     <physics name="1ms" type="ignored">
@@ -148,6 +273,7 @@ def build_world(width, height, corridor, wall_nominal, wall_h, seed, origin):
     <plugin filename="gz-sim-sensors-system"           name="gz::sim::systems::Sensors">
       <render_engine>ogre2</render_engine>
     </plugin>
+    <plugin filename="gz-sim-imu-system"               name="gz::sim::systems::Imu"/>
 
     <light type="directional" name="sun">
       <cast_shadows>true</cast_shadows>
@@ -178,7 +304,7 @@ def build_world(width, height, corridor, wall_nominal, wall_h, seed, origin):
 </sdf>
 """
     meta = dict(nx=nx, ny=ny, tx=tx, ty=ty, boxes=len(boxes), spawn=spawn,
-                numeric=numeric, ox=ox, oy=oy)
+                numeric=numeric, ox=ox, oy=oy, rooms=rooms_world, room_size_m=room_size_m)
     return world, meta
 
 
@@ -267,15 +393,34 @@ def main():
                     help="also emit a ROS occupancy map here (e.g. ../maps/maze.yaml)")
     ap.add_argument("--map-res", type=float, default=0.05,
                     help="occupancy map resolution in m/cell (default 0.05)")
+    ap.add_argument("--rooms", type=int, default=0,
+                    help="number of open (wall-free) rooms to carve, spread out by "
+                         "--room-min-sep-cells (default 0 = original maze, unchanged)")
+    ap.add_argument("--room-cells", type=int, default=3,
+                    help="each room is this many grid cells square (default 3 -> "
+                         "~4.5 m at the default 1.5 m corridor, comfortably larger "
+                         "than any turning-radius maneuver needs)")
+    ap.add_argument("--room-min-sep-cells", type=int, default=6,
+                    help="minimum grid (hop-count, not straight-line) distance "
+                         "between any two chosen rooms")
     a = ap.parse_args()
 
     world, meta = build_world(a.width, a.height, a.corridor, a.wall, a.wall_height,
-                              a.seed, a.origin)
+                              a.seed, a.origin, a.rooms, a.room_cells,
+                              a.room_min_sep_cells)
     with open(a.out, "w") as f:
         f.write(world)
     print(f"wrote {a.out}: grid {meta['nx']}x{meta['ny']}, "
           f"walls tx={meta['tx']:.3f} ty={meta['ty']:.3f}, "
           f"{meta['boxes']} boxes, spawn~({meta['spawn'][0]:.2f},{meta['spawn'][1]:.2f})")
+    if meta["rooms"]:
+        pts = ", ".join(f"({x:.2f},{y:.2f})" for x, y in meta["rooms"])
+        print(f"  {len(meta['rooms'])} rooms, {meta['room_size_m']:.2f} m square, "
+              f"centers: {pts}")
+        if len(meta["rooms"]) < a.rooms:
+            print(f"  WARNING: only found {len(meta['rooms'])}/{a.rooms} rooms "
+                  f"satisfying --room-min-sep-cells={a.room_min_sep_cells} on this "
+                  f"grid -- lower the separation or the room count")
 
     if a.map_out:
         img = rasterize(meta["numeric"], a.width, a.height,

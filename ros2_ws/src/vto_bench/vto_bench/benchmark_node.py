@@ -7,9 +7,11 @@ Flow:
   on /map      -> build grid, sample `num_legs` reachable well-clear goal cells
                   (seeded -> identical every run), verified solvable by A*.
   tour         -> publish goal_i on /goal_pose; a timer samples per-tick data
-                  (TF map->base pose, /cmd_vel, cross-track vs /plan, clearance,
-                  /controller/compute_ms); on reach (or timeout) write a per-leg
-                  summary row, advance. Repeat `repeats` times, then stop.
+                  (TF map->base pose, TF map->odom [AMCL's correction, isolated
+                  from the composed pose — docs/16 §4], /amcl_pose covariance,
+                  /cmd_vel, cross-track vs /plan, clearance, /controller/compute_ms);
+                  on reach (or timeout) write a per-leg summary row, advance.
+                  Repeat `repeats` times, then stop.
 Outputs: <output_dir>/<label>_summary.csv (one row/leg) + <label>_ticks.csv.
 """
 import csv
@@ -19,7 +21,8 @@ import random
 import time
 
 import rclpy
-from geometry_msgs.msg import PoseStamped
+from rcl_interfaces.msg import ParameterDescriptor
+from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
 from nav_msgs.msg import OccupancyGrid, Path
 from geometry_msgs.msg import TwistStamped
 from rclpy.duration import Duration
@@ -31,6 +34,8 @@ from tf2_ros import Buffer, TransformException, TransformListener
 from vto_bench.metrics import (SUMMARY_COLUMNS, cross_track, path_length,
                                summarize)
 from vto_planning.astar import astar, clearance_field, inflate_obstacles
+from vto_planning.lattice import densify_path, heading_index_from_yaw, lattice
+from vto_planning.lattice_ackermann import ackermann_primitive_table
 
 
 class Benchmark(Node):
@@ -50,9 +55,28 @@ class Benchmark(Node):
         self.declare_parameter("safety_margin", 0.10)
         self.declare_parameter("spawn_x", -9.1)
         self.declare_parameter("spawn_y", -14.1)
+        # goal_validator (docs/40): "astar" (default, unchanged -- diffbot can
+        # pivot in place, so a grid-connectivity check is a fine proxy for
+        # "can it get there") or "lattice_ackermann" -- validate candidates
+        # with the actual forward-only Dubins lattice search instead, so a
+        # goal that's only reachable by reversing out of a dead-end (A*
+        # doesn't know that's infeasible; it has no notion of heading or
+        # turning radius) is never chosen in the first place, not filtered
+        # after the fact.
+        self.declare_parameter("goal_validator", "astar")
+        self.declare_parameter("turning_radius_m", 0.29 / math.tan(0.5))
+        self.declare_parameter("spawn_yaw", 0.0)
+        # room_centers (docs/43): flat [x0,y0,x1,y1,...] list of fixed
+        # waypoints to visit EXACTLY ONCE each, nearest-unvisited-first from
+        # spawn -- overrides the random-sampling tour below entirely when
+        # non-empty. Default [] preserves the original random tour for
+        # diffbot's bench.launch.py, unaffected.
+        self.declare_parameter("room_centers", [],
+                               ParameterDescriptor(dynamic_typing=True))
         self.declare_parameter("output_dir", "/workspace/ros2_ws/results")
         self.declare_parameter("global_frame", "map")
         self.declare_parameter("base_frame", "base_footprint")
+        self.declare_parameter("odom_frame", "odom")
 
         # state
         self.grid = None
@@ -63,6 +87,11 @@ class Benchmark(Node):
         self.plan_len = 0.0
         self.cmd = (0.0, 0.0)             # latest /cmd_vel (v, w)
         self.compute_ms = None            # latest /controller/compute_ms
+        self.planner_compute_ms = None    # latest /planner/compute_ms (docs/46) --
+                                           # one value per goal request, not per tick;
+                                           # reset in _start_leg so a stale value from
+                                           # a PREVIOUS leg is never misattributed
+        self.amcl_cov = (None, None, None)  # latest /amcl_pose diagonal (xx, yy, yaw_yaw)
         self.repeat = 0
         self.leg = 0
         self.tour_built = False
@@ -82,6 +111,8 @@ class Benchmark(Node):
         self.create_subscription(Path, "/plan", self._on_plan, latched)
         self.create_subscription(TwistStamped, "/cmd_vel", self._on_cmd, 10)
         self.create_subscription(Float64, "/controller/compute_ms", self._on_compute, 10)
+        self.create_subscription(Float64, "/planner/compute_ms", self._on_planner_compute, 10)
+        self.create_subscription(PoseWithCovarianceStamped, "/amcl_pose", self._on_amcl_pose, 10)
         self.goal_pub = self.create_publisher(PoseStamped, "/goal_pose", 10)
 
         os.makedirs(self.get_parameter("output_dir").value, exist_ok=True)
@@ -100,7 +131,9 @@ class Benchmark(Node):
         self.ticks_f = open(os.path.join(d, f"{label}_ticks.csv"), "w", newline="")
         self.ticks_w = csv.writer(self.ticks_f)
         self.ticks_w.writerow(["repeat", "leg", "t", "x", "y", "v", "w",
-                               "cte", "clearance", "compute_ms"])
+                               "cte", "clearance", "compute_ms",
+                               "odom_x", "odom_y",
+                               "amcl_cov_xx", "amcl_cov_yy", "amcl_cov_yaw"])
 
     def _cell_from_world(self, x, y):
         return (int((y - self.map_oy) / self.res), int((x - self.map_ox) / self.res))
@@ -133,31 +166,134 @@ class Benchmark(Node):
             for k in range(len(path) - 1))
 
     def _build_tour(self, rows, cols):
-        """Chain goals so each leg's A* PATH length is in [leg_min_dist, leg_max_dist]
+        """Chain goals so each leg's PATH length is in [leg_min_dist, leg_max_dist]
         — bounds drive time and keeps legs short + diverse. Deterministic (seed +
-        spawn), so both controllers get the identical tour."""
+        spawn), so repeat runs of the same validator get the identical tour.
+
+        goal_validator selects how a candidate's reachability is checked
+        (see the parameter's declare_parameter comment): "astar" (grid
+        connectivity only) or "lattice_ackermann" (the real forward-only
+        Dubins search, heading-chained leg to leg -- a candidate is only
+        accepted if THIS robot can actually drive there from however it's
+        expected to be oriented after the previous leg).
+
+        room_centers, if set, bypasses all of the above (see
+        _build_tour_visit_all_rooms): visits each given point exactly once
+        instead of randomly sampling.
+        """
+        room_centers = list(self.get_parameter("room_centers").value)
+        if room_centers:
+            self._build_tour_visit_all_rooms(room_centers)
+            return
         n = self.get_parameter("num_legs").value
         mc = self.get_parameter("min_clear_cells").value
         dmin = self.get_parameter("leg_min_dist").value
         dmax = self.get_parameter("leg_max_dist").value
+        validator = self.get_parameter("goal_validator").value
         rng = random.Random(self.get_parameter("seed").value)
         candidates = [(r, c) for r in range(rows) for c in range(cols)
                       if self.clear[r][c] >= mc]
         cur_xy = (self.get_parameter("spawn_x").value,
                   self.get_parameter("spawn_y").value)
         cur_cell = self._cell_from_world(*cur_xy)
+
+        table = None
+        cur_heading = None
+        if validator == "lattice_ackermann":
+            turning_radius_cells = self.get_parameter("turning_radius_m").value / self.res
+            table = ackermann_primitive_table(turning_radius_cells=turning_radius_cells)
+            cur_heading = heading_index_from_yaw(self.get_parameter("spawn_yaw").value)
+
         goals, attempts = [], 0
         while len(goals) < n and attempts < 20000:
             attempts += 1
             cell = rng.choice(candidates)
+            # A* first, always: cheap (4-8 neighbors, no heading dimension),
+            # and every lattice-feasible candidate is necessarily A*-feasible
+            # too (A* ignores turning radius/heading, so it's a strictly
+            # looser reachability test) -- this filters out the large
+            # majority of attempts (wrong distance band, truly disconnected)
+            # before paying for the far more expensive lattice search.
             path = astar(self.grid, cur_cell, cell, clearance=self.clear,
                          clearance_weight=0.0)
             if path is None or not (dmin <= self._path_len_m(path) <= dmax):
                 continue
+            if validator == "lattice_ackermann":
+                # Only now: does the actual forward-only Dubins search agree
+                # this car (not just an omnidirectional grid walker) can
+                # drive there? max_expansions caps a genuine reject (e.g. a
+                # goal only reachable by reversing out of a dead-end) at a
+                # bounded cost instead of exhausting the whole reachable
+                # state space (docs/40). Raised from 25000 (docs/40's
+                # corridor-maze figure) to 60000 for docs/43's open-room
+                # map: a wide-open room has far more reachable (row,col,
+                # heading) states than a narrow corridor of the same area,
+                # so even an EASY, solvable path there needs more expansions
+                # -- measured directly: candidates rejected at 25000 solved
+                # fine (~3.3s) with no cap, needing only slightly more.
+                states = lattice(self.grid, cur_cell + (cur_heading,), cell,
+                                 primitive_table=table, goal_tolerance=1.5,
+                                 clearance_weight=6.0, inflation_radius=8,
+                                 clearance=self.clear, max_expansions=60000)
+                if states is None:
+                    continue
+                length_m = self._path_len_m(densify_path(states, table))
+                if not (dmin <= length_m <= dmax):
+                    continue
+                cur_heading = states[-1][2]
             cur_xy, cur_cell = self._world_from_cell(*cell), cell
             goals.append(cur_xy)
         self.goals = goals
         self._write_tour()
+
+    def _build_tour_visit_all_rooms(self, room_centers_flat):
+        """Visit each given (x, y) waypoint EXACTLY ONCE, nearest-unvisited
+        -first from spawn by real A* PATH distance (not straight-line --
+        rooms connected by winding corridors can have a travel order very
+        different from Euclidean proximity). No leg_min_dist/leg_max_dist
+        filtering: the point of this mode (docs/43) is covering every large
+        open area once, not a distance band. Greedy nearest-neighbor is a
+        heuristic, not an optimal tour -- fine for a handful of rooms; not
+        meant to scale to dozens.
+
+        No goal_validator re-check here either: these are fixed waypoints,
+        not resampled candidates, so there is nothing to swap in if one
+        rejects. If a room genuinely isn't reachable from wherever the tour
+        currently is, the leg simply times out during the real run --
+        which is itself the information worth having (docs/43 is exactly
+        about making all rooms reachable via ordinary forward-only driving;
+        a timeout here would mean that didn't fully work), not something to
+        paper over during tour-building.
+        """
+        pts = [(room_centers_flat[i], room_centers_flat[i + 1])
+              for i in range(0, len(room_centers_flat), 2)]
+        remaining = list(pts)
+        cur_xy = (self.get_parameter("spawn_x").value,
+                 self.get_parameter("spawn_y").value)
+        cur_cell = self._cell_from_world(*cur_xy)
+        goals = []
+        while remaining:
+            best_i, best_dist = None, math.inf
+            for i, (x, y) in enumerate(remaining):
+                path = astar(self.grid, cur_cell, self._cell_from_world(x, y),
+                            clearance=self.clear, clearance_weight=0.0)
+                if path is None:
+                    continue
+                d = self._path_len_m(path)
+                if d < best_dist:
+                    best_dist, best_i = d, i
+            if best_i is None:
+                x, y = remaining.pop(0)
+                self.get_logger().warn(
+                    f"room at ({x:.2f},{y:.2f}) unreachable (A*) from the "
+                    "current tour position -- dropping it, not stalling the tour build")
+                continue
+            x, y = remaining.pop(best_i)
+            goals.append((x, y))
+            cur_cell = self._cell_from_world(x, y)
+        self.goals = goals
+        self._write_tour()
+        self.get_logger().info(f"room tour: visiting {len(goals)}/{len(pts)} rooms once each")
 
     def _write_tour(self):
         path = os.path.join(self.get_parameter("output_dir").value, "tour.csv")
@@ -178,11 +314,32 @@ class Benchmark(Node):
     def _on_compute(self, msg: Float64):
         self.compute_ms = msg.data
 
+    def _on_planner_compute(self, msg: Float64):
+        self.planner_compute_ms = msg.data
+
+    def _on_amcl_pose(self, msg: PoseWithCovarianceStamped):
+        # 6x6 row-major covariance over (x, y, z, roll, pitch, yaw); diagonal
+        # terms only — xx, yy, yaw-yaw are the ones a divergence would spike.
+        c = msg.pose.covariance
+        self.amcl_cov = (c[0], c[7], c[35])
+
     def _robot_xy(self):
         try:
             tf = self.tf_buffer.lookup_transform(
                 self.get_parameter("global_frame").value,
                 self.get_parameter("base_frame").value,
+                rclpy.time.Time(), timeout=Duration(seconds=0.1))
+        except TransformException:
+            return None
+        return (tf.transform.translation.x, tf.transform.translation.y)
+
+    def _map_odom_xy(self):
+        # AMCL's own correction, isolated from the continuous odom->base_footprint
+        # motion composed into _robot_xy() — see docs/14 §6 / docs/16 §4.
+        try:
+            tf = self.tf_buffer.lookup_transform(
+                self.get_parameter("global_frame").value,
+                self.get_parameter("odom_frame").value,
                 rclpy.time.Time(), timeout=Duration(seconds=0.1))
         except TransformException:
             return None
@@ -205,6 +362,7 @@ class Benchmark(Node):
         # called from _tick only when TF is available -> leg_start_xy is real.
         self.leg_start_xy = self._robot_xy() or (0.0, 0.0)
         self.plan_pts, self.plan_len = [], 0.0       # wait for the new leg's plan
+        self.planner_compute_ms = None               # this leg's own value only
         self.records = []
         self.leg_start_t = self._now()
         self.leg_active = True
@@ -229,12 +387,25 @@ class Benchmark(Node):
         r, c = self._cell_from_world(x, y)
         if 0 <= r < len(self.clear) and 0 <= c < len(self.clear[0]):
             clr_m = self.clear[r][c] * self.res
+        odom_xy = self._map_odom_xy()
         self.records.append({"t": self._now(), "x": x, "y": y, "v": v, "w": w,
                              "cte": cross_track(x, y, self.plan_pts),
-                             "clearance": clr_m, "compute_ms": self.compute_ms})
+                             "clearance": clr_m, "compute_ms": self.compute_ms,
+                             "odom_x": odom_xy[0] if odom_xy else None,
+                             "odom_y": odom_xy[1] if odom_xy else None,
+                             "amcl_cov": self.amcl_cov})
 
-        # a goal sent before the planner's TF was ready gets dropped -> re-send it
-        if not self.plan_pts and (self._now() - self.last_send) > 3.0:
+        # a goal sent before the planner's TF was ready gets dropped -> re-send it.
+        # 60s, not 3s: a long-haul lattice replan can legitimately take
+        # 30+ seconds (docs/45 -- a real measured case, 310k search
+        # expansions, not a hang). At 3s, this fired WHILE that search was
+        # still genuinely working, and since a single-threaded planner
+        # node can't process a resend until its current solve finishes,
+        # each resend just queued up and fired immediately after -- a
+        # self-perpetuating retry storm of full replans, each ~30s, that
+        # never let the robot simply drive the first (valid) plan. 60s has
+        # real margin above the worst case actually measured.
+        if not self.plan_pts and (self._now() - self.last_send) > 60.0:
             self._send_goal()
 
         gx, gy = self.goals[self.leg]
@@ -253,15 +424,22 @@ class Benchmark(Node):
                "start_x": round(self.leg_start_xy[0], 3),
                "start_y": round(self.leg_start_xy[1], 3),
                "goal_x": round(self.goals[self.leg][0], 3),
-               "goal_y": round(self.goals[self.leg][1], 3), **s}
+               "goal_y": round(self.goals[self.leg][1], 3),
+               "planner_compute_ms": (round(self.planner_compute_ms, 3)
+                                     if self.planner_compute_ms is not None else ""),
+               **s}
         self.summary_w.writerow(row)
         self.summary_f.flush()
         for rec in self.records:
+            cov = rec["amcl_cov"]
             self.ticks_w.writerow([self.repeat, self.leg, round(rec["t"], 3),
                                    round(rec["x"], 3), round(rec["y"], 3),
                                    round(rec["v"], 3), round(rec["w"], 3),
                                    round(rec["cte"], 4), round(rec["clearance"], 3),
-                                   rec["compute_ms"]])
+                                   rec["compute_ms"],
+                                   round(rec["odom_x"], 4) if rec["odom_x"] is not None else "",
+                                   round(rec["odom_y"], 4) if rec["odom_y"] is not None else "",
+                                   cov[0], cov[1], cov[2]])
         self.ticks_f.flush()
         self.get_logger().info(
             f"[r{self.repeat} leg {self.leg + 1}] {'REACHED' if reached else 'TIMEOUT'} "

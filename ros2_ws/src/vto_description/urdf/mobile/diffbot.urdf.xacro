@@ -117,6 +117,19 @@
     <origin xyz="${base_len/2 - 0.06} 0 ${base_hei/2 + 0.02}"/>
   </joint>
 
+  <!-- ================= IMU (Phase 2: robot_localization EKF) =================
+       Placed at base_link's own origin (not offset like the lidar) so
+       linear_acceleration reflects true body acceleration rather than a
+       lever-arm/centripetal term picked up from sitting off-center in turns. -->
+  <link name="imu_link">
+    <xacro:box_inertia m="0.05" x="0.02" y="0.02" z="0.02"/>
+  </link>
+  <joint name="imu_joint" type="fixed">
+    <parent link="base_link"/>
+    <child  link="imu_link"/>
+    <origin xyz="0 0 0"/>
+  </joint>
+
   <xacro:include filename="$(find vto_description)/urdf/mobile/diffbot.gazebo.xacro"/>
 
 </robot>

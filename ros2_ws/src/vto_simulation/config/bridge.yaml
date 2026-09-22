@@ -14,3 +14,11 @@
   ros_type_name: "sensor_msgs/msg/LaserScan"
   gz_type_name: "gz.msgs.LaserScan"
   direction: GZ_TO_ROS
+
+# IMU for robot_localization EKF (Phase 2). gz_topic must match `gz topic -l`;
+# with <topic>imu</topic> on the sensor it is /imu.
+- ros_topic_name: "/imu"
+  gz_topic_name: "/imu"
+  ros_type_name: "sensor_msgs/msg/Imu"
+  gz_type_name: "gz.msgs.IMU"
+  direction: GZ_TO_ROS

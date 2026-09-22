@@ -2,8 +2,12 @@
 
   ros2 launch vto_bench bench.launch.py controller:=pursuit
   ros2 launch vto_bench bench.launch.py controller:=mpc num_legs:=30 repeats:=2
+  ros2 launch vto_bench bench.launch.py controller:=mpc label:=mpc_headless_confirm
+  ros2 launch vto_bench bench.launch.py planner:=lattice label:=lattice_confirm  # docs/22
 
-Writes <output_dir>/<controller>_summary.csv + _ticks.csv. Headless by default.
+Writes <output_dir>/<label>_summary.csv + _ticks.csv (label defaults to
+`controller`; override it to rerun a controller without overwriting a prior
+result). Headless by default.
 """
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
@@ -16,10 +20,12 @@ from launch_ros.substitutions import FindPackageShare
 
 def generate_launch_description():
     controller = LaunchConfiguration("controller")
+    label = LaunchConfiguration("label")
     stack = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(PathJoinSubstitution(
             [FindPackageShare("vto_bringup"), "launch", "maze_astar.launch.py"])),
         launch_arguments={"controller": controller,
+                          "planner": LaunchConfiguration("planner"),
                           "headless": LaunchConfiguration("headless"),
                           "mpc_v_min": LaunchConfiguration("mpc_v_min")}.items(),
     )
@@ -27,7 +33,7 @@ def generate_launch_description():
         package="vto_bench", executable="benchmark", name="benchmark", output="screen",
         parameters=[{
             "use_sim_time": True,
-            "label": controller,
+            "label": label,
             # coerce string launch-args to the types the node declares
             "num_legs": ParameterValue(LaunchConfiguration("num_legs"), value_type=int),
             "repeats": ParameterValue(LaunchConfiguration("repeats"), value_type=int),
@@ -40,6 +46,12 @@ def generate_launch_description():
     )
     return LaunchDescription([
         DeclareLaunchArgument("controller", default_value="pursuit"),
+        DeclareLaunchArgument("planner", default_value="astar",
+                              description="global planner: astar | lattice (docs/22)"),
+        DeclareLaunchArgument("label", default_value=LaunchConfiguration("controller"),
+                              description="output-file tag; defaults to controller "
+                                          "name, override to avoid overwriting a "
+                                          "prior run with the same controller"),
         DeclareLaunchArgument("headless", default_value="true"),
         DeclareLaunchArgument("mpc_v_min", default_value="0.0"),
         DeclareLaunchArgument("num_legs", default_value="30"),

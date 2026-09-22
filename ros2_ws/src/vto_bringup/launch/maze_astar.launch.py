@@ -1,23 +1,28 @@
 """Phase 2: solve the maze with A* + Pure Pursuit + AMCL localization.
 
-  ros2 launch vto_bringup maze_astar.launch.py                    # Pure Pursuit + RViz
-  ros2 launch vto_bringup maze_astar.launch.py controller:=mpc    # MPC follower
-  ros2 launch vto_bringup maze_astar.launch.py headless:=true     # no GUI/RViz
+  ros2 launch vto_bringup maze_astar.launch.py                       # Pure Pursuit + RViz
+  ros2 launch vto_bringup maze_astar.launch.py controller:=mpc       # MPC follower
+  ros2 launch vto_bringup maze_astar.launch.py planner:=lattice      # lattice global planner (docs/22)
+  ros2 launch vto_bringup maze_astar.launch.py headless:=true        # no GUI/RViz
 
 Brings up, in one shot:
-  gazebo (maze world + diffbot + lidar) -> map_server (serves maze.yaml on /map)
+  gazebo (maze world + diffbot + lidar + imu) -> ekf_node (/odom+/imu -> owns
+  odom->base_footprint) -> map_server (serves maze.yaml on /map)
   -> lifecycle_manager (activates map_server + amcl) -> amcl (owns map->odom)
   -> astar_planner (/map + /goal_pose -> /plan) -> pure_pursuit (/plan -> /cmd_vel)
   -> RViz.
 
 Usage once up: in RViz, click "2D Nav Goal" and pick a spot in the maze.
 
-Notes (see docs/09, docs/11):
+Notes (see docs/09, docs/11, docs/17, docs/18):
   * map_server and amcl are *lifecycle nodes* — lifecycle_manager (autostart)
     configure->activates them in order (map_server first, so amcl has a /map).
   * AMCL now owns the live `map->odom` transform (replacing the old static one).
     For it to actually help, the planner + follower must reference the `map`
     frame via TF (not the old odom-frame shortcut) — see docs/12.
+  * ekf_node owns `odom->base_footprint` now (diff_drive_controller's
+    enable_odom_tf is false) — two-stage state estimation: ekf_node fuses
+    odom+imu locally, amcl corrects that against the map. docs/16 §3-4.
 """
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
@@ -40,10 +45,12 @@ def generate_launch_description():
     bringup_pkg = FindPackageShare("vto_bringup")
     headless = LaunchConfiguration("headless")
     controller = LaunchConfiguration("controller")   # "pursuit" or "mpc"
+    planner = LaunchConfiguration("planner")         # "astar" or "lattice" (docs/22)
     sim_time = {"use_sim_time": True}
 
     map_yaml = PathJoinSubstitution([sim_pkg, "maps", "maze.yaml"])
     amcl_cfg = PathJoinSubstitution([bringup_pkg, "config", "amcl.yaml"])
+    ekf_cfg = PathJoinSubstitution([bringup_pkg, "config", "ekf.yaml"])
     rviz_cfg = PathJoinSubstitution([bringup_pkg, "rviz", "maze_astar.rviz"])
 
     # 1) Gazebo: maze world + diffbot at the spawn cell.
@@ -53,6 +60,15 @@ def generate_launch_description():
         launch_arguments={
             "world": "maze.sdf", "x": SPAWN_X, "y": SPAWN_Y, "headless": headless,
         }.items(),
+    )
+
+    # 1.5) ekf_node (robot_localization): fuses /odom + /imu -> /odometry/filtered,
+    #    owns the odom->base_footprint TF (diff_drive_controller's enable_odom_tf
+    #    is now false — see diffbot_controllers.yaml). Must come up before amcl,
+    #    which reads that TF for its motion model. docs/17, docs/18.
+    ekf_node = Node(
+        package="robot_localization", executable="ekf_node", name="ekf_filter_node",
+        output="screen", parameters=[ekf_cfg],
     )
 
     # 2) map_server: loads maze.yaml, publishes a latched /map (lifecycle node).
@@ -78,26 +94,39 @@ def generate_launch_description():
         parameters=[amcl_cfg],
     )
 
-    # 5) A* global planner (map-frame; start pose from TF map->base via AMCL).
+    # 5) Global planner (map-frame; start pose from TF map->base via AMCL) --
+    #    pick one with planner:=astar|lattice (docs/22). A gate, not a permanent
+    #    swap: A* stays the default so existing benchmarks/behavior don't change
+    #    unless asked.
+    planner_params = [sim_time, {
+        # clearance cost: R (reach) must be ~half the corridor to center the
+        # path; raising w alone won't push past R. corridor 1.5 m = 15 cells.
+        "clearance_weight": 6.0,   # strength
+        "inflation_radius": 8,     # cells (~0.7 m ~ half corridor)
+    }]
     astar = Node(
         package="vto_planning", executable="astar_planner", name="astar_planner",
-        output="screen",
-        parameters=[sim_time, {
-            # clearance cost: R (reach) must be ~half the corridor to center the
-            # path; raising w alone won't push past R. corridor 1.5 m = 15 cells.
-            "clearance_weight": 6.0,   # strength
-            "inflation_radius": 8,     # cells (~0.7 m ~ half corridor)
-        }],
+        output="screen", parameters=planner_params,
+        condition=IfCondition(EqualsSubstitution(planner, "astar")),
+    )
+    lattice = Node(
+        package="vto_planning", executable="lattice_planner", name="lattice_planner",
+        output="screen", parameters=planner_params,
+        condition=IfCondition(EqualsSubstitution(planner, "lattice")),
     )
     # 6) Follower (/plan -> /cmd_vel) — pick one with controller:=pursuit|mpc.
+    #    /odom -> /odometry/filtered: controllers get their twist feedback from
+    #    ekf_node's fused estimate now, not raw wheel odom (docs/18). No node
+    #    code changes needed — plain launch-time topic remap.
+    odom_remap = [("/odom", "/odometry/filtered")]
     pure_pursuit = Node(
         package="vto_control", executable="pure_pursuit", name="pure_pursuit",
-        output="screen", parameters=[sim_time],
+        output="screen", parameters=[sim_time], remappings=odom_remap,
         condition=IfCondition(EqualsSubstitution(controller, "pursuit")),
     )
     mpc = Node(
         package="vto_control", executable="mpc_controller", name="mpc_controller",
-        output="screen",
+        output="screen", remappings=odom_remap,
         # mpc_v_min:=-0.5 re-enables reverse to reproduce the AMCL-divergence bug (docs/14);
         # default 0.0 = forward-only (the fix).
         parameters=[sim_time, {"v_min": ParameterValue(
@@ -106,7 +135,7 @@ def generate_launch_description():
     )
     mppi = Node(
         package="vto_control", executable="mppi_controller", name="mppi_controller",
-        output="screen", parameters=[sim_time],
+        output="screen", parameters=[sim_time], remappings=odom_remap,
         condition=IfCondition(EqualsSubstitution(controller, "mppi")),
     )
     # 7) RViz (skipped when headless).
@@ -120,7 +149,9 @@ def generate_launch_description():
         DeclareLaunchArgument("headless", default_value="false"),
         DeclareLaunchArgument("controller", default_value="pursuit",
                               description="follower: pursuit | mpc | mppi"),
+        DeclareLaunchArgument("planner", default_value="astar",
+                              description="global planner: astar | lattice (docs/22)"),
         DeclareLaunchArgument("mpc_v_min", default_value="0.0",
                               description="MPC min linear vel; -0.5 re-enables reverse (bug repro)"),
-        gazebo, map_server, lifecycle, amcl, astar, pure_pursuit, mpc, mppi, rviz,
+        gazebo, ekf_node, map_server, lifecycle, amcl, astar, lattice, pure_pursuit, mpc, mppi, rviz,
     ])

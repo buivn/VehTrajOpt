@@ -1,0 +1,57 @@
+# nav2_amcl for the Ackermann robot in the maze -- docs/38.
+# Same as amcl.yaml (diffbot, docs/11) except initial_pose.yaw, which must
+# match THIS robot's actual spawn heading (1.5708 -- the corridor-facing
+# fix), not diffbot's 0.0. robot_model_type stays DifferentialMotionModel
+# on purpose (docs/38 section 2): nav2_amcl has no distinct Ackermann model,
+# and the differential model operates on the resulting odometry delta
+# (rot-trans-rot), not on how it was mechanically produced -- the alphaN
+# noise parameters are the right knob for a different drivetrain, not the
+# model choice.
+amcl:
+  ros__parameters:
+    use_sim_time: true
+
+    # --- frames / topics -------------------------------------------------
+    global_frame_id: "map"
+    odom_frame_id: "odom"
+    base_frame_id: "base_footprint"
+    scan_topic: "scan"
+    tf_broadcast: true
+    transform_tolerance: 1.0
+
+    # --- update: laser measurement model (likelihood field) --------------
+    laser_model_type: "likelihood_field"
+    max_beams: 60
+    laser_min_range: 0.15
+    laser_max_range: 12.0
+    laser_likelihood_max_dist: 2.0
+    z_hit: 0.5
+    z_rand: 0.5
+    sigma_hit: 0.2
+
+    # --- predict: odometry motion model ------------------------------------
+    robot_model_type: "nav2_amcl::DifferentialMotionModel"
+    alpha1: 0.2
+    alpha2: 0.2
+    alpha3: 0.2
+    alpha4: 0.2
+
+    # --- resample: adaptive particle count (KLD-sampling) -----------------
+    min_particles: 200
+    max_particles: 2000
+    kld_err: 0.05
+    kld_z: 0.99
+    resample_interval: 1
+    recovery_alpha_slow: 0.0
+    recovery_alpha_fast: 0.0
+
+    update_min_d: 0.2
+    update_min_a: 0.2
+
+    # --- initial belief: matches this robot's actual spawn (docs/38) -----
+    set_initial_pose: true
+    initial_pose:
+      x: -9.1
+      y: -14.1
+      z: 0.0
+      yaw: 1.5708

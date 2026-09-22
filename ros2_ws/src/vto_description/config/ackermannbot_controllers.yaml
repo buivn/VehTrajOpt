@@ -1,0 +1,47 @@
+controller_manager:
+  ros__parameters:
+    update_rate: 100  # Hz -- same as diffbot_controllers.yaml, keeps the
+                       # control-loop dt comparable across robots for MPC/MPPI.
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    ackermann_steering_controller:
+      type: ackermann_steering_controller/AckermannSteeringController
+
+ackermann_steering_controller:
+  ros__parameters:
+    # Non-deprecated param names verified against ros2_controllers jazzy
+    # branch (v4.40.1, matches the installed image) -- the older
+    # front_wheels_names/rear_wheels_names/front_wheel_track/front_steering
+    # API is deprecated in this version, so it's not used here (docs/33).
+    #
+    # Order matters: steering_controllers_library.yaml documents "the
+    # expected order is: right joint, left joint" for both lists.
+    traction_joints_names: ["rear_right_wheel_joint", "rear_left_wheel_joint"]
+    steering_joints_names: ["front_right_steer_joint", "front_left_steer_joint"]
+
+    wheelbase: 0.29              # matches ackermannbot.urdf.xacro's wheelbase property
+                                  # (0.29 after the length:width=1.5 revision -- was 0.24)
+    traction_track_width: 0.34   # matches the urdf's track property
+    steering_track_width: 0.34
+    traction_wheels_radius: 0.08 # matches wheel_radius
+
+    open_loop: false
+    position_feedback: false     # traction feedback via HW_IF_VELOCITY (rear
+                                  # wheels are velocity-commanded, docs/32)
+
+    # TF: ekf_node now owns odom->base_footprint (docs/37), same handoff
+    # diffbot made in docs/18 -- this controller must NOT also broadcast it,
+    # or two nodes would fight over the same transform.
+    base_frame_id: base_footprint
+    odom_frame_id: odom
+    enable_odom_tf: false
+
+    # command reference: geometry_msgs/TwistStamped on
+    # ~/reference == /ackermann_steering_controller/reference (verified
+    # against steering_controllers_library.cpp/.hpp source, jazzy branch) --
+    # a DIFFERENT topic name than diff_drive_controller's .../cmd_vel.
+    # Remapping vto_control nodes to publish here is a later step (docs/31
+    # §"caveats" -- also needs the bicycle-dynamics controller rework,
+    # not just a topic rename).

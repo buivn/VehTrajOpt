@@ -160,7 +160,8 @@ these as a mode swap (SLAM to make the map, AMCL to reuse it).
   (odom+IMU) — smooths but **drifts unbounded** (no absolute reference). AMCL adds an
   **exteroceptive** fix (lidar vs map), so it's drift-free but needs a map and can fail
   in feature-poor / symmetric spaces. Real stacks use both: EKF for `odom→base`, AMCL
-  for `map→odom`.
+  for `map→odom`. (This repo: `ekf_node` is Phase 2's next step — see doc 16 §3-4
+  for the target wiring, doc 17 for the IMU sensor it fuses in.)
 - **Q: Failure modes?** Kidnapped robot (no global recovery unless enabled),
   perceptual aliasing (symmetric corridors), too few particles, bad initial pose,
   wrong scan↔map frame.

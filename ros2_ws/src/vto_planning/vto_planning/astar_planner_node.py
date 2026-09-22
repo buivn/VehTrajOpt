@@ -12,6 +12,7 @@ The old static spawn offset (`_world_from_odom` etc.) is gone — localization o
 map->odom, and we just read the corrected pose from tf.
 """
 import math
+import time
 
 import rclpy
 from geometry_msgs.msg import PoseStamped
@@ -19,6 +20,7 @@ from nav_msgs.msg import OccupancyGrid, Path
 from rclpy.duration import Duration
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
+from std_msgs.msg import Float64
 from tf2_ros import Buffer, TransformException, TransformListener
 
 from vto_planning.astar import (astar, clearance_field, inflate_obstacles,
@@ -63,6 +65,10 @@ class AStarPlanner(Node):
         self.create_subscription(OccupancyGrid, "/map", self._on_map, map_qos)
         self.create_subscription(PoseStamped, "/goal_pose", self._on_goal, 10)
         self.plan_pub = self.create_publisher(Path, "/plan", plan_qos)
+        # planner runtime metric (docs/46): one value per goal request, timing
+        # just the search call -- NOT a per-tick series like a controller's
+        # compute_ms, since planning happens once per leg, not once per tick.
+        self.planner_compute_pub = self.create_publisher(Float64, "planner/compute_ms", 10)
 
         self.get_logger().info(
             "astar_planner up (map-frame): waiting for /map, /goal_pose, and TF")
@@ -129,6 +135,7 @@ class AStarPlanner(Node):
             f"planning: start map({sx:.2f},{sy:.2f})=cell{start} -> "
             f"goal map({gx:.2f},{gy:.2f})=cell{goal}")
 
+        t0 = time.perf_counter()
         cells = astar(
             self.grid, start, goal,
             connectivity=self.get_parameter("connectivity").value,
@@ -137,6 +144,7 @@ class AStarPlanner(Node):
             occ_thresh=self.get_parameter("occ_thresh").value,
             clearance=self.clearance,
         )
+        self.planner_compute_pub.publish(Float64(data=(time.perf_counter() - t0) * 1000.0))
         if cells is None:
             self.get_logger().warn("A*: no path found (goal blocked/unreachable)")
             return

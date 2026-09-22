@@ -1,0 +1,81 @@
+<?xml version="1.0"?>
+<!-- Gazebo wiring for the Ackermann robot: the gz_ros2_control plugin
+     (loads ackermannbot_controllers.yaml, docs/33), wheel friction, and
+     the lidar + IMU sensors (docs/36, copied from diffbot.gazebo.xacro
+     verbatim - sensor spec is chassis-shape-independent). -->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <gazebo>
+    <plugin filename="gz_ros2_control-system"
+            name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+      <parameters>$(find vto_description)/config/ackermannbot_controllers.yaml</parameters>
+    </plugin>
+  </gazebo>
+
+  <!-- All four wheels are real, load-bearing, grip-dependent wheels here
+       (unlike diffbot's front/rear casters, which are frictionless swivel
+       balls with no steering function) - front wheels need grip for
+       steering to produce a cornering force, so they get the same friction
+       as the driven rear wheels, not diffbot's near-zero caster friction. -->
+  <gazebo reference="rear_left_wheel">
+    <mu1>1.0</mu1> <mu2>1.0</mu2>
+  </gazebo>
+  <gazebo reference="rear_right_wheel">
+    <mu1>1.0</mu1> <mu2>1.0</mu2>
+  </gazebo>
+  <gazebo reference="front_left_wheel">
+    <mu1>1.0</mu1> <mu2>1.0</mu2>
+  </gazebo>
+  <gazebo reference="front_right_wheel">
+    <mu1>1.0</mu1> <mu2>1.0</mu2>
+  </gazebo>
+
+  <!-- 2D lidar: same as diffbot.gazebo.xacro:25-51. -->
+  <gazebo reference="laser">
+    <sensor name="lidar" type="gpu_lidar">
+      <topic>scan</topic>
+      <update_rate>10</update_rate>
+      <always_on>1</always_on>
+      <visualize>true</visualize>
+      <gz_frame_id>laser</gz_frame_id>
+      <lidar>
+        <scan>
+          <horizontal>
+            <samples>360</samples>
+            <resolution>1</resolution>
+            <min_angle>-3.141592</min_angle>
+            <max_angle>3.141592</max_angle>
+          </horizontal>
+        </scan>
+        <range>
+          <min>0.15</min>
+          <max>12.0</max>
+          <resolution>0.01</resolution>
+        </range>
+      </lidar>
+    </sensor>
+  </gazebo>
+
+  <!-- IMU: same as diffbot.gazebo.xacro:53-81. Gaussian noise is required,
+       not cosmetic - zero covariance reads as "infinitely certain" and
+       would break any future EKF fusion for this robot. -->
+  <gazebo reference="imu_link">
+    <sensor name="imu" type="imu">
+      <topic>imu</topic>
+      <update_rate>100</update_rate>
+      <always_on>1</always_on>
+      <gz_frame_id>imu_link</gz_frame_id>
+      <imu>
+        <angular_velocity>
+          <x><noise type="gaussian"><mean>0.0</mean><stddev>2e-4</stddev></noise></x>
+          <y><noise type="gaussian"><mean>0.0</mean><stddev>2e-4</stddev></noise></y>
+          <z><noise type="gaussian"><mean>0.0</mean><stddev>2e-4</stddev></noise></z>
+        </angular_velocity>
+        <linear_acceleration>
+          <x><noise type="gaussian"><mean>0.0</mean><stddev>1.7e-2</stddev></noise></x>
+          <y><noise type="gaussian"><mean>0.0</mean><stddev>1.7e-2</stddev></noise></y>
+          <z><noise type="gaussian"><mean>0.0</mean><stddev>1.7e-2</stddev></noise></z>
+        </linear_acceleration>
+      </imu>
+    </sensor>
+  </gazebo>
+</robot>

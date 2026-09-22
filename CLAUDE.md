@@ -74,6 +74,10 @@ Core `src/` files carry `Copyright (C) 2023 Erion Plaku — All Rights Reserved,
 - **Phase 0 (Docker + diffbot in Gazebo)** — ✅ verified via `ros2_ws/scripts/phase0_smoke_test.sh` (spawns, controllers activate, drives 0→1.82 m, odom integrates). Controller topics remapped to standard `/cmd_vel` + `/odom`.
 - **Phase 1 Pure Pursuit** — ✅ verified. `vto_control` has `pure_pursuit` + `path_publisher` nodes; `vto_bringup/pursuit_sim.launch.py` runs sim+pursuit; `scripts/phase1_pursuit_test.sh` passes (follows quarter-circle arc to within 0.16 m of goal (2,2)). Doc 05.
 - **Maze env** — ✅ loads. `vto_simulation/scripts/generate_maze.py` procedurally generates `worlds/maze.sdf` (20×30 m, 1.5 m corridors, seeded recursive-backtracker, 191 wall boxes, `--origin center` default; robot spawns ~(-9.1,-14.1)). `vto_bringup/maze.launch.py` loads it. Doc 06. **Needs a planner** to actually solve — a fixed test path won't work in a maze.
+- **MPC tail-latency fix (docs 27–28)** — diagnosed: headless MPC `compute_ms` spikes (up to 270ms vs ~19ms mean, dt=0.1s) are IPOPT active-set iteration variance, not cold start (only 16/100 legs' peak spike falls near leg start). Fix: swap IPOPT → SQP via **acados**, plus make the control loop non-blocking. Steps 1–2/4 done + verified:
+  - Step 1: acados C core + `acados_template` built into the Docker image (`vehtrajopt:jazzy`), `t_renderer` pre-baked at build time (no runtime network dependency).
+  - Step 2: `vto_control/mpc_core_acados.py` (`MPCCoreAcados`) — unicycle model translated to `AcadosModel`/`AcadosOcp` (SQP_RTI + HPIPM, discrete dynamics, state-augmented `(v_prev,w_prev)` for the rate cost). Same `solve()` interface as `MPCCore`; solve time ~0.5ms vs IPOPT's ~19ms mean in the same tracking tests (`test_mpc_core_acados.py`, 5/5 pass). `mpc_controller_node.py` now uses it, and its publish timer never blocks on the solve: a `ThreadPoolExecutor(max_workers=1)` runs the solve, and while one's in flight the timer replays `U_seq[:,k]` from the last finished plan (k = ticks elapsed) instead of freezing — degrades gracefully, hard-stops only once the whole horizon (N ticks) is exhausted. State-machine verified deterministically in `test_mpc_controller_async.py` (2/2 pass, via a fake gated solver).
+  - Step 3 (RTI solver-option tuning) and step 4 (re-benchmark vs the IPOPT baseline CSVs) not started.
 
 ### Still TODO / next options
 - I still need to eyeball the GUI once: `ros2 launch vto_bringup sim.launch.py` and `pursuit_sim.launch.py`.
@@ -95,6 +99,10 @@ Core `src/` files carry `Copyright (C) 2023 Erion Plaku — All Rights Reserved,
 - A hand-made `ament_python` pkg MUST have `setup.cfg` with `install_scripts=$base/lib/<pkg>`, else executables land in `bin/` and launch can't find them.
 - Pure pursuit `_lookahead_point` must search **FORWARD** from the closest path index, else the carrot flips behind and the robot oscillates.
 - In-container colcon runs as **root** → root-owned `build/install/__pycache__` in the mounted repo (gitignored; `sudo rm -rf` to clean; use `ast.parse`, not `py_compile`, on the host).
+
+**acados gotchas (verified real, doc 27):**
+- Not pip-installable — a C core (BLASFEO + HPIPM + acados) built via CMake into `$ACADOS_SOURCE_DIR` itself (its own default install prefix), then `pip install -e $ACADOS_SOURCE_DIR/interfaces/acados_template` on top. `ACADOS_SOURCE_DIR` + `LD_LIBRARY_PATH=$ACADOS_SOURCE_DIR/lib` must be set (Dockerfile `ENV`, so they carry into every container).
+- `acados_template` lazily downloads its code-gen tool (`t_renderer`) into `$ACADOS_SOURCE_DIR/bin` on first solver generation — since `/opt/acados` isn't part of the mounted workspace volume, a container built without pre-fetching it will re-download on every fresh `docker compose run`. Fix: trigger one solver generation (the bundled `minimal_example_ocp.py`) as a `RUN` step during the image build itself, so `t_renderer` bakes into the image layer.
 
 ---
 

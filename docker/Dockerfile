@@ -58,6 +58,34 @@ RUN groupadd -g 992 render || true
 # -> --break-system-packages. numpy/scipy already come from the ROS desktop apt.
 RUN pip install --no-cache-dir --break-system-packages casadi
 
+# --- acados: SQP (Real-Time Iteration) NMPC solver, see docs/27 ------------
+# Not pip-installable: a C core (BLASFEO + HPIPM + acados) built via CMake,
+# plus a Python wrapper (acados_template) that code-generates + compiles a
+# solver per OCP against that core. CMake's own default install target is
+# $ACADOS_SOURCE_DIR/{lib,include}, hence LD_LIBRARY_PATH pointing there.
+ENV ACADOS_SOURCE_DIR=/opt/acados
+ENV LD_LIBRARY_PATH=/opt/acados/lib:$LD_LIBRARY_PATH
+RUN git clone --recurse-submodules --shallow-submodules --depth 1 \
+      https://github.com/acados/acados.git ${ACADOS_SOURCE_DIR} \
+    && mkdir -p ${ACADOS_SOURCE_DIR}/build \
+    && cd ${ACADOS_SOURCE_DIR}/build \
+    && cmake .. \
+    && make install -j$(nproc)
+
+# -e (editable) so it imports straight from the cloned tree above.
+RUN pip install --no-cache-dir --break-system-packages -e ${ACADOS_SOURCE_DIR}/interfaces/acados_template
+
+# acados_template lazily downloads its code-gen tool (t_renderer) into
+# $ACADOS_SOURCE_DIR/bin on first solver generation -- do that download now,
+# at build time, by generating+solving the bundled pendulum example once, so
+# a fresh container never needs network access just to build an OCP solver
+# (verified: without this, `docker compose run --rm` re-downloads it every
+# time, since /opt/acados isn't part of the mounted workspace volume).
+RUN cp -r ${ACADOS_SOURCE_DIR}/examples/acados_python/getting_started /tmp/acados_smoke \
+    && cd /tmp/acados_smoke \
+    && MPLBACKEND=Agg python3 minimal_example_ocp.py \
+    && cd / && rm -rf /tmp/acados_smoke
+
 WORKDIR /workspace
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["bash"]

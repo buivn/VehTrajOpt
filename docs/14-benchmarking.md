@@ -113,13 +113,58 @@ heavy predictive controller as MPC but ~10× cheaper per tick and, crucially, **
 - the distinguishing factor is MPC's **occasional IPOPT compute spikes (200 ms+)**, not its
   mean load (a 10 s snapshot showed MPC at 20 Hz / RTF 1 — the spikes are *intermittent*).
 
-**Leading conclusion (well-supported, not yet directly proven):** MPC's **intermittent
-solve spikes** momentarily gap the control loop; over a 90-min / 60-leg run these
-accumulate into an AMCL divergence, then cascade. MPPI (no spikes) and Pure Pursuit (µs)
-never gap, so both are headless-robust. **Direct confirmation** would still log `map→odom`
-jumps vs. per-tick solve time over a full run to catch a spike immediately preceding the
-first jump. For the report: Pure Pursuit + MPC use GUI numbers (MPC is headless-fragile);
-MPPI's headless numbers are trustworthy (it didn't diverge).
+**Leading conclusion at the time (well-supported, not yet directly proven):** MPC's
+**intermittent solve spikes** momentarily gap the control loop; over a 90-min / 60-leg run
+these accumulate into an AMCL divergence, then cascade. MPPI (no spikes) and Pure Pursuit
+(µs) never gap, so both are headless-robust. For the report: Pure Pursuit + MPC use GUI
+numbers (MPC is headless-fragile); MPPI's headless numbers are trustworthy (it didn't
+diverge). **Update below: direct confirmation was run, and downgrades this theory.**
+
+### Direct confirmation attempt — theory downgraded
+
+Built the missing instrumentation (docs/16 §"benchmark_node" — per-tick `map→odom`
+translation logged *separately* from the composed `map→base_footprint` pose, plus
+`/amcl_pose` covariance diagonal), then reran headless MPC three times (forward-only,
+the already-applied fix): 60, 60, and 100 legs (**220 legs total**, `results/mpc_headless_confirm*`).
+
+**The divergence did not reproduce once.** 98–99% reached every run, matching the GUI
+baseline. So either the original 30/53 failure was conditions-dependent (spike frequency
+plausibly tracks host CPU load, which wasn't controlled for) or it was rarer than one run
+suggested — 220 clean legs is real counter-evidence against "solve spikes reliably cause
+headless divergence" as stated.
+
+What the tick data actually shows:
+- **`map→odom` jump sizes are stable and small across all reruns:** median 0.21–0.22 m,
+  p90 0.57–0.58 m, **max 1.6–1.7 m, zero jumps over 2 m** in ~140k ticks. AMCL only moves
+  this transform on ~11% of sampled ticks (89% zero-delta) — but *when* it does, a
+  0.2–0.6 m correction is the **normal** per-update jitter of a particle filter, not a
+  divergence signal. The original 37 m teleport is ~25× that scale; a "did the pose jump"
+  check needs a threshold well above ~2 m to mean anything here.
+- **One real, small, physically-confirmed spike effect:** two back-to-back solves
+  (177.6 ms, 125.9 ms — over 3× the 50 ms control period, so the controller's own timer
+  genuinely stalled) were immediately followed by `cte` rising 0.002→0.052 m and
+  clearance dropping 0.60→0.40 m for about a second, then recovering. Small and
+  self-correcting, but it's the first tick-level evidence the mechanism does something
+  physical at all.
+- **The largest covariance excursion found is *not* spike-related.** `amcl_cov_xx` hit
+  3.38 (67× the run mean) ~17 s after the nearest compute spike — too far removed to be
+  the same event — and ramped up/down smoothly over ~9 s with normal (15–25 ms) compute
+  times throughout. That shape (gradual, no compute anomaly nearby) looks like AMCL's own
+  measurement ambiguity (a locally self-similar corridor stretch), independent of the
+  controller. `odom_x/odom_y` stayed smooth through it — high covariance meant the belief
+  *spread out*, not that the point estimate jumped.
+- **The one leg that fails in every run (including the original GUI run)** targets the
+  same goal `(-2.05, -5.55)` — always a 150 s timeout, always ~60% of a long plan driven,
+  never a pose teleport. That's a reproducible MPC/planning difficulty on a specific
+  route (leg 0 of the deterministic seeded tour), unrelated to headless vs. GUI and
+  unrelated to this investigation.
+
+**Revised assessment:** downgrade "MPC solve spikes → headless AMCL divergence" from
+*well-supported* to *rare/unconfirmed*. Spikes are real and headless-specific enough (up
+to 284 ms observed), and there's now one genuine small-scale example of a spike degrading
+tracking — but nothing in 220 fresh legs came close to reproducing the cascade. Whatever
+made the original sweep fail 30/53 likely needed conditions (host load? a specific
+random seed's scan noise?) this project hasn't controlled for or reproduced.
 
 **Lessons (these hold regardless of the final mechanism):**
 - Correlation ≠ causation — a rampant behavior (reverse) can be a *symptom* of the failure,

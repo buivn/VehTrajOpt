@@ -12,7 +12,8 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from vto_control.pursuit_core import (adaptive_lookahead, lookahead_point,  # noqa: E402
-                                      sample_reference, velocity_command)
+                                      sample_reference, velocity_command,
+                                      velocity_command_ackermann)
 
 
 def test_adaptive_lookahead():
@@ -125,6 +126,38 @@ def test_corner_cutting_reduced():
           f"NEW max_dev={new:.2f} m")
     assert new < old, "new law should cut the corner less"
     assert new < 0.20, "new law should hold the path within 0.20 m"
+
+
+def test_ackermann_no_turn_in_place():
+    # target directly BEHIND the robot -- would trigger diff-drive's
+    # turn-in-place pivot (v=0). The Ackermann law has no such branch:
+    # v must stay at/above the anti-stall floor regardless of heading error.
+    v, w, alpha = velocity_command_ackermann(
+        (-1.0, 0.1), 0.0, 0.0, 0.0,
+        max_linear=0.5, min_linear=0.12, max_curvature=2.0, slow_gain=0.8)
+    assert abs(alpha) > 2.5, f"expected a near-180 deg heading error, got {alpha}"
+    assert v >= 0.12, f"Ackermann law must never command v=0 -- got v={v}"
+    print("PASS test_ackermann_no_turn_in_place")
+
+
+def test_ackermann_curvature_clamped_before_multiply():
+    # a target close enough that the RAW pure-pursuit curvature (2*y_r/dist^2)
+    # is far beyond max_curvature -- must clamp curvature itself, not just w,
+    # so that atan(L * (w/v)) = atan(L * curvature) stays <= max_steer_angle
+    # for ANY v (docs/35), not just the specific v this call happens to use.
+    L, max_steer = 0.29, 0.5
+    max_curvature = math.tan(max_steer) / L
+    v, w, _ = velocity_command_ackermann(
+        (0.05, 0.05), 0.0, 0.0, 0.0,   # very close, sharply off to the side
+        max_linear=0.5, min_linear=0.12, max_curvature=max_curvature, slow_gain=0.8)
+    implied_curvature = w / v
+    assert abs(implied_curvature) <= max_curvature + 1e-9, \
+        f"implied curvature {implied_curvature} exceeds max_curvature {max_curvature}"
+    implied_steer = math.atan(L * implied_curvature)
+    assert abs(implied_steer) <= max_steer + 1e-9, \
+        f"implied steering angle {implied_steer} exceeds max_steer_angle {max_steer}"
+    print(f"PASS test_ackermann_curvature_clamped_before_multiply "
+          f"(implied steer={math.degrees(implied_steer):.1f} deg <= {math.degrees(max_steer):.1f} deg)")
 
 
 if __name__ == "__main__":

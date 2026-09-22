@@ -19,6 +19,9 @@ setup(
     entry_points={
         "console_scripts": [
             "astar_planner = vto_planning.astar_planner_node:main",
+            "lattice_planner = vto_planning.lattice_planner_node:main",
+            "lattice_ackermann_planner = vto_planning.lattice_ackermann_planner_node:main",
+            "follower_planner = vto_planning.follower_planner_node:main",
         ],
     },
 )

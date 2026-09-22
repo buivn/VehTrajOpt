@@ -89,4 +89,5 @@ SUMMARY_COLUMNS = ["controller", "repeat", "leg", "start_x", "start_y",
                    "goal_x", "goal_y", "reached", "ticks", "time_to_goal",
                    "cte_mean", "cte_max", "cte_rms", "driven_len", "planned_len",
                    "len_ratio", "dw_rms", "dv_rms", "effort", "mean_abs_w",
-                   "mean_v", "min_clearance", "compute_ms_mean", "compute_ms_max"]
+                   "mean_v", "min_clearance", "compute_ms_mean", "compute_ms_max",
+                   "planner_compute_ms"]

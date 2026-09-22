@@ -49,4 +49,34 @@
       </lidar>
     </sensor>
   </gazebo>
+
+  <!-- IMU: gz publishes gz.msgs.IMU on gz topic /imu (bridged to ROS /imu).
+       gz_frame_id=imu_link so orientation/angular_velocity/linear_acceleration
+       are expressed in the IMU's own frame (REP-145). Needs the
+       gz-sim-imu-system plugin in the world (separate from the lidar's
+       gz-sim-sensors-system — IMU is not a rendering-based sensor).
+       Gaussian noise (typical low-cost MEMS gyro/accel figures) is required,
+       not cosmetic: it's what makes gz populate non-zero covariance on the
+       message, which ekf_node's Kalman gain needs — zero covariance reads as
+       "infinitely certain" and breaks/short-circuits the fusion math. -->
+  <gazebo reference="imu_link">
+    <sensor name="imu" type="imu">
+      <topic>imu</topic>
+      <update_rate>100</update_rate>
+      <always_on>1</always_on>
+      <gz_frame_id>imu_link</gz_frame_id>
+      <imu>
+        <angular_velocity>
+          <x><noise type="gaussian"><mean>0.0</mean><stddev>2e-4</stddev></noise></x>
+          <y><noise type="gaussian"><mean>0.0</mean><stddev>2e-4</stddev></noise></y>
+          <z><noise type="gaussian"><mean>0.0</mean><stddev>2e-4</stddev></noise></z>
+        </angular_velocity>
+        <linear_acceleration>
+          <x><noise type="gaussian"><mean>0.0</mean><stddev>1.7e-2</stddev></noise></x>
+          <y><noise type="gaussian"><mean>0.0</mean><stddev>1.7e-2</stddev></noise></y>
+          <z><noise type="gaussian"><mean>0.0</mean><stddev>1.7e-2</stddev></noise></z>
+        </linear_acceleration>
+      </imu>
+    </sensor>
+  </gazebo>
 </robot>

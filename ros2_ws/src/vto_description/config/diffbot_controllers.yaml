@@ -16,10 +16,13 @@ diff_drive_controller:
     wheel_separation: 0.34
     wheel_radius: 0.08
 
-    # publish TF odom -> base_footprint (turn off once robot_localization owns odom, Phase 2)
+    # TF odom -> base_footprint is now owned by robot_localization's ekf_node
+    # (Phase 2, docs/18) — diff_drive_controller still publishes /odom (raw
+    # wheel odom, ekf_node's input) but must NOT also broadcast this TF, or
+    # two nodes would fight over the same transform.
     odom_frame_id: odom
     base_frame_id: base_footprint
-    enable_odom_tf: true
+    enable_odom_tf: false
     open_loop: false
 
     use_stamped_vel: false   # accept geometry_msgs/Twist on cmd_vel

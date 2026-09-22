@@ -161,8 +161,8 @@ piece, bottom to top:
         └───────────────────────┬─────────────────────────────┘
                                 │ raw sensor topics
         ┌───────────────────────▼─────────────────────────────┐
-        │              STATE ESTIMATION / FUSION               │
-        │   robot_localization EKF, Kalman filter → "where am I?"│ Phase 2
+        │             STATE ESTIMATION / FUSION               │
+        │robot_localization EKF, Kalman filter → "where am I?"│ Phase 2
         └───────────────────────┬─────────────────────────────┘
                                 │ /odom, TF map→odom→base_link
         ┌───────────────────────▼─────────────────────────────┐

@@ -1,0 +1,38 @@
+# robot_localization ekf_node for the Ackermann robot -- docs/37.
+# Same as ekf.yaml (diffbot, docs/17-18) except odom0's topic: this robot's
+# odometry was never remapped to /odom (deliberately, docs/34), so it's
+# pointed at the native topic name directly. Everything else is wheel-
+# odometry/gyro fusion physics that doesn't depend on the drivetrain.
+ekf_filter_node:
+  ros__parameters:
+    use_sim_time: true
+    frequency: 30.0
+    two_d_mode: true
+    publish_tf: true
+
+    odom_frame: odom
+    base_link_frame: base_footprint   # must match ackermann_steering_controller's base_frame_id
+    world_frame: odom                 # NOT map -- AMCL owns map->odom (docs/38), not this node
+
+    # --- wheel odometry: trust position (x,y,yaw) + forward/yaw velocity ---
+    # vy excluded: a car can't strafe any more than a diff-drive robot can,
+    # so a "measured" lateral velocity would just fit sensor/integration noise.
+    odom0: /ackermann_steering_controller/odometry
+    odom0_config: [true,  true,  false,
+                   false, false, true,
+                   true,  false, false,
+                   false, false, true,
+                   false, false, false]
+    odom0_differential: false
+    odom0_relative: false
+
+    # --- IMU: trust ONLY the gyro's yaw rate (same reasoning as docs/18) ---
+    imu0: /imu
+    imu0_config: [false, false, false,
+                  false, false, false,
+                  false, false, false,
+                  false, false, true,
+                  false, false, false]
+    imu0_differential: false
+    imu0_relative: false
+    imu0_remove_gravitational_acceleration: true

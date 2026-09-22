@@ -26,6 +26,17 @@ to get asked, with short answers.
 | 13 | [MPC controller (design)](13-mpc-controller.md) | Receding horizon, unicycle model, N-step reference window, CasADi+IPOPT, tracking/effort/comfort costs, MPC vs Pure Pursuit vs MPPI |
 | 14 | [Benchmarking controllers](14-benchmarking.md) | The 7 metrics, goal-tour vs teleport, the `vto_bench` harness, compute-time publishing, how to run + analyze |
 | 15 | [MPPI controller (design)](15-mppi-controller.md) | Sampling-based MPC, path-integral weighting, temperature λ, MPPI vs MPC (sample vs gradient), GPU parallelism, nonconvex costs |
+| 16 | [Nav pipeline diagram](16-nav-pipeline-diagram.md) | Static node/topic/TF reference for the full stack as wired: Gazebo → localization → planning → control, plus where `vto_bench` taps in |
+| 17 | [Adding an IMU](17-imu-sensor.md) | Phase 2 step 1: simulated IMU on the diffbot publishing `/imu` — raw sensor only, no fusion yet |
+| 18 | [robot_localization EKF](18-robot-localization-ekf.md) | Phase 2 step 2: `ekf_node` fuses `/odom` + `/imu` into `/odometry/filtered`, takes over `odom→base_footprint` TF |
+| 19 | [EKF fusion mechanics](19-ekf-fusion-mechanics.md) | The internals of doc 18's `ekf_node`: predict/update tick-by-tick, no new files |
+| 20 | [Trajectory generation roadmap](20-trajectory-generation-roadmap.md) | Scoping pass: method × robot-model matrix + fixed metrics list before writing any generation code |
+| 21 | [DWA for diff-drive](21-dwa-diffdrive.md) | Dynamic Window Approach theory + design — **ruled out, not implemented** (§4 explains why); kept as the interview-worthy record of the trade-off |
+| 22 | [State-lattice path generation, diff-drive](22-lattice-diffdrive.md) | First generation-method pipeline for M1 (diff-drive): theory + method selection + design, no code yet |
+| 23 | [Multi-robot coordination roadmap](23-multi-robot-coordination-roadmap.md) | Orchestration-track scoping: task allocation, MAPF (prioritised → PBS → windowed), zone-based traffic, spatial decomposition, phased build order, fleet metrics |
+| 24 | [Ackermann state lattice, step 1: Dubins](24-lattice-ackermann-dubins.md) | Bounded-curvature edge primitive for M2 (car-like): `dubins.py`, shortest drivable curve between two oriented poses |
+| 25 | [Ackermann state lattice, step 2: control set + search](25-lattice-ackermann-control-set.md) | Turns Dubins edges into a minimal control set and runs the lattice search: `lattice_ackermann.py` |
+| 26 | [Off-road planning method taxonomy](26-offroad-planning-method-taxonomy.md) | Reference doc: main off-road car-like planning methods, how they decompose, concrete disadvantages of each |
 | — | [Trajectory Optimization report](report/trajectory-optimization-report.md) | Living comparison: planners (A\*, sampling) × controllers (Pure Pursuit, MPC, MPPI) — metrics + results |
 | — | [Commands cheatsheet](commands.md) | All build/run/drive/test/debug commands in one place |
 

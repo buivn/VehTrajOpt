@@ -5,14 +5,20 @@ Same interface (so we can A/B them on identical goals for the report):
 
 Each control tick it turns the global path into an N-point reference window
 (pursuit_core.sample_reference), then solves the receding-horizon OCP
-(mpc_core.MPCCore) and publishes the first control. See docs/13.
+(mpc_core_acados.MPCCoreAcados) and publishes a control. See docs/13, docs/27, docs/28.
 
-The solve (~10 ms) runs on a fixed-rate TIMER (not the 100 Hz odom callback) so we
-control the compute budget. Pose comes from TF (AMCL-corrected); /odom twist is the
-current (v, ω) used as the accel/comfort anchor.
+The publish timer (fixed-rate, `control_rate`) NEVER blocks on the solve: the solve
+runs on a single background worker thread (docs/28 §2-3). Each tick, the timer either
+(a) adopts a just-finished solve's fresh U_seq[:,0], or (b) while one is still in
+flight, replays U_seq[:,k] from the LAST finished solve (k = ticks elapsed since it
+was produced) -- an open-loop continuation of the optimizer's own plan, not a guess.
+If the plan runs out (solve late for the whole horizon), it stops (0,0) rather than
+inventing motion. Pose comes from TF (AMCL-corrected); /odom twist is the current
+(v, ω) used as the accel/comfort anchor.
 """
 import math
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 import rclpy
@@ -23,7 +29,7 @@ from rclpy.node import Node
 from std_msgs.msg import Float64
 from tf2_ros import Buffer, TransformException, TransformListener
 
-from vto_control.mpc_core import MPCCore
+from vto_control.mpc_core_acados import MPCCoreAcados
 from vto_control.pursuit_core import sample_reference
 
 
@@ -57,7 +63,7 @@ class MPCController(Node):
         gp = self.get_parameter
         self.N = gp("N").value
         self.dt = gp("dt").value
-        self.mpc = MPCCore(
+        self.mpc = MPCCoreAcados(
             N=self.N, dt=self.dt,
             v_max=gp("v_max").value, v_min=gp("v_min").value, w_max=gp("w_max").value,
             dv_max=gp("dv_max").value, dw_max=gp("dw_max").value,
@@ -70,6 +76,16 @@ class MPCController(Node):
         self.path_pts: list[tuple[float, float]] = []
         self.reached = False
         self.u_prev = (0.0, 0.0)        # current (v, ω) from odom, anchors accel/comfort
+
+        # --- async solve (docs/28): the publish timer never blocks on mpc.solve() ---
+        # A ctypes call into the compiled acados solver releases the GIL, so this
+        # thread runs genuinely alongside the executor's spin loop. max_workers=1
+        # is the invariant that keeps solve() calls serialized (AcadosOcpSolver is
+        # not safe to call concurrently from two threads).
+        self._solve_pool = ThreadPoolExecutor(max_workers=1)
+        self._future = None             # in-flight solve, or None
+        self._seq = None                # last COMPLETED (2, N) predicted sequence
+        self._seq_idx = 0               # ticks consumed from self._seq since it finished
 
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
@@ -85,6 +101,11 @@ class MPCController(Node):
     def _on_path(self, msg: Path):
         self.path_pts = [(p.pose.position.x, p.pose.position.y) for p in msg.poses]
         self.reached = False
+        # discard any plan in flight/finished for the OLD path -- replaying it
+        # against the new path would be a stale, unrelated trajectory, not a
+        # graceful degrade.
+        self._future = None
+        self._seq = None
         self.get_logger().info(f"received path with {len(self.path_pts)} points")
 
     def _on_odom(self, msg: Odometry):
@@ -105,6 +126,16 @@ class MPCController(Node):
         return (t.x, t.y, yaw)
 
     # ------------------------------------------------------------------ #
+    @staticmethod
+    def _solve_job(mpc, state, u_prev, ref_arr):
+        """Runs on the worker thread. Returns a snapshot safe to hand back across
+        threads -- mpc.U_seq is mutated in place by the NEXT solve() call, so it
+        must be copied before crossing back to the timer thread."""
+        t0 = time.perf_counter()
+        v, w = mpc.solve(state, u_prev, ref_arr)
+        solve_ms = (time.perf_counter() - t0) * 1000.0
+        return v, w, mpc.U_seq.copy(), solve_ms
+
     def _control(self):
         if not self.path_pts or self.reached:
             return
@@ -116,20 +147,48 @@ class MPCController(Node):
         gx, gy = self.path_pts[-1]
         if math.hypot(gx - px, gy - py) < self.get_parameter("goal_tolerance").value:
             self.reached = True
+            self._future = None
+            self._seq = None
             self._publish(0.0, 0.0)
             self.get_logger().info("goal reached — stopping")
             return
 
-        # global path -> N+1 reference states over the horizon (a moving window)
-        ds = self.get_parameter("ref_speed").value * self.dt
-        ref = sample_reference(self.path_pts, px, py, self.N + 1, ds)
-        ref_arr = np.array(ref).T                                  # (3, N+1)
+        # 1) Harvest a finished solve if one's ready, else replay the last plan
+        #    (docs/28): never block waiting on the solve.
+        if self._future is not None and self._future.done():
+            v, w, self._seq, solve_ms = self._future.result()
+            self._seq_idx = 0
+            self.compute_pub.publish(Float64(data=solve_ms))
+            self._future = None
+            self._publish(v, w)
+        elif self._future is not None:
+            if self._seq is None:
+                self.get_logger().warn(
+                    "first MPC solve still running, no plan to replay yet — stopping")
+                self._publish(0.0, 0.0)
+            elif self._seq_idx + 1 < self._seq.shape[1]:
+                self._seq_idx += 1
+                v, w = self._seq[:, self._seq_idx]
+                self._publish(v, w)
+            else:
+                self.get_logger().warn(
+                    "MPC solve overran the whole horizon — stopping")
+                self._publish(0.0, 0.0)
 
-        t0 = time.perf_counter()
-        v, w = self.mpc.solve(np.array([px, py, yaw]),
-                              np.array(self.u_prev), ref_arr)
-        self.compute_pub.publish(Float64(data=(time.perf_counter() - t0) * 1000.0))
-        self._publish(v, w)
+        # 2) Pipeline the next solve as soon as none is in flight (state/ref
+        #    captured NOW, on the timer thread, so the worker only ever touches
+        #    plain arrays -- not node state).
+        if self._future is None or self._future.done():
+            ds = self.get_parameter("ref_speed").value * self.dt
+            ref = sample_reference(self.path_pts, px, py, self.N + 1, ds)
+            ref_arr = np.array(ref).T                               # (3, N+1)
+            self._future = self._solve_pool.submit(
+                self._solve_job, self.mpc,
+                np.array([px, py, yaw]), np.array(self.u_prev), ref_arr)
+
+    def destroy_node(self):
+        self._solve_pool.shutdown(wait=False)
+        return super().destroy_node()
 
     def _publish(self, v, w):
         msg = TwistStamped()

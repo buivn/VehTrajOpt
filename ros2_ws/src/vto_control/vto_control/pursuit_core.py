@@ -149,3 +149,36 @@ def velocity_command(target, px, py, yaw, *, max_linear, max_angular,
     v = max(min_linear, max_linear / (1.0 + slow_gain * abs(curvature)))
     w = clamp(v * curvature, -max_angular, max_angular)
     return v, w, alpha
+
+
+def velocity_command_ackermann(target, px, py, yaw, *, max_linear, min_linear,
+                               max_curvature, slow_gain):
+    """Bicycle-model-correct Pure Pursuit command: (v, w) — docs/35.
+
+    Unlike velocity_command() (diff-drive), there is no turn-in-place branch:
+    an Ackermann vehicle cannot rotate without translating (ω=0 whenever
+    v=0), so a large heading error is handled the same as any other error —
+    drive at the clamped curvature, no special case.
+
+    `max_curvature` (= tan(max_steer_angle)/wheelbase) is clamped BEFORE the
+    `v * curvature` multiply, not after (contrast velocity_command's
+    `clamp(v*curvature, ...)`). For this vehicle, curvature — not angular
+    velocity — is the physically bounded quantity (steering angle can't
+    exceed max_steer_angle regardless of speed), and clamping in this order
+    guarantees the resulting (v, w) always implies an achievable steering
+    angle: the controller's own inverse kinematics is
+    δ = atan(L·w/v) = atan(L·curvature) once w = v·curvature, so bounding
+    curvature directly bounds δ for any v, including v -> 0, without ever
+    forming the w/v ratio itself.
+    """
+    dx, dy = target[0] - px, target[1] - py
+    x_r = math.cos(-yaw) * dx - math.sin(-yaw) * dy
+    y_r = math.sin(-yaw) * dx + math.cos(-yaw) * dy
+    alpha = math.atan2(y_r, x_r)
+
+    dist = max(math.hypot(x_r, y_r), 1e-6)
+    curvature = clamp(2.0 * y_r / (dist * dist), -max_curvature, max_curvature)
+
+    v = max(min_linear, max_linear / (1.0 + slow_gain * abs(curvature)))
+    w = v * curvature
+    return v, w, alpha
