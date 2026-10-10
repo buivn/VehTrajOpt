@@ -1,0 +1,58 @@
+# nav2_amcl — Adaptive Monte Carlo Localization for the diffbot in the maze.
+# See docs/11 for the theory. Grouped by the particle-filter stage each knob affects.
+amcl:
+  ros__parameters:
+    use_sim_time: true
+
+    # --- frames / topics -------------------------------------------------
+    # AMCL corrects map->odom; it consumes odom->base_footprint (wheel odom) and
+    # the scan. base_frame_id MUST match the diff_drive_controller's base_frame_id.
+    global_frame_id: "map"
+    odom_frame_id: "odom"
+    base_frame_id: "base_footprint"
+    scan_topic: "scan"
+    tf_broadcast: true                 # publish the map->odom correction
+    transform_tolerance: 1.0           # [s] how long a published TF stays valid
+
+    # --- ② UPDATE: laser measurement model (likelihood field) ------------
+    laser_model_type: "likelihood_field"   # fast, smooth; scores beam endpoints
+    max_beams: 60                       # subsample of the 360 beams (speed)
+    laser_min_range: 0.15
+    laser_max_range: 12.0
+    laser_likelihood_max_dist: 2.0      # [m] cap on endpoint->obstacle distance
+    z_hit: 0.5                          # weight of "beam hit the mapped wall"
+    z_rand: 0.5                         # weight of "random/unexpected reading"
+    sigma_hit: 0.2                      # [m] std-dev of the hit Gaussian
+
+    # --- ① PREDICT: odometry motion model (differential drive) -----------
+    robot_model_type: "nav2_amcl::DifferentialMotionModel"
+    # noise injected each predict; scales with the motion (see docs/11 Q1):
+    alpha1: 0.2    # rotation  noise from rotation
+    alpha2: 0.2    # rotation  noise from translation
+    alpha3: 0.2    # translation noise from translation
+    alpha4: 0.2    # translation noise from rotation
+
+    # --- ③ RESAMPLE: adaptive particle count (KLD-sampling) --------------
+    min_particles: 200
+    max_particles: 2000
+    kld_err: 0.05                       # max error between true & sample belief
+    kld_z: 0.99
+    resample_interval: 1               # resample every filter update
+    # recovery (random particle injection for the kidnapped-robot problem);
+    # 0 = off — enable later if we need global relocalization.
+    recovery_alpha_slow: 0.0
+    recovery_alpha_fast: 0.0
+
+    # --- when to run the update (save CPU + preserve particle diversity) -
+    update_min_d: 0.2                  # [m]   move this far before updating
+    update_min_a: 0.2                  # [rad] or turn this much
+
+    # --- initial belief --------------------------------------------------
+    # We know the spawn exactly, so seed the cloud there instead of requiring a
+    # manual RViz "2D Pose Estimate". Must match the Gazebo spawn / launch.
+    set_initial_pose: true
+    initial_pose:
+      x: -9.1
+      y: -14.1
+      z: 0.0
+      yaw: 0.0

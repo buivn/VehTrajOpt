@@ -1,0 +1,43 @@
+# robot_localization ekf_node — fuses wheel odom + IMU gyro into odom->base_footprint.
+# See docs/17 (IMU sensor) and docs/18 (this node) for the theory/justification.
+# This EKF owns ONLY the local odom->base_footprint transform; it must never
+# touch map->odom (that's AMCL's, docs/11) — world_frame: odom is what enforces that.
+ekf_filter_node:
+  ros__parameters:
+    use_sim_time: true
+    frequency: 30.0
+    two_d_mode: true            # planar robot: don't let z/roll/pitch drift unconstrained
+    publish_tf: true
+
+    odom_frame: odom
+    base_link_frame: base_footprint   # must match diff_drive_controller's base_frame_id
+    world_frame: odom                 # NOT map — AMCL owns map->odom, not this node
+
+    # --- wheel odometry: trust position (x,y,yaw) + forward/yaw velocity ---
+    # vy excluded: a diff-drive robot cannot strafe, so a "measured" lateral
+    # velocity would just be fitting sensor/integration noise.
+    odom0: /odom
+    odom0_config: [true,  true,  false,
+                   false, false, true,
+                   true,  false, false,
+                   false, false, true,
+                   false, false, false]
+    odom0_differential: false
+    odom0_relative: false
+
+    # --- IMU: trust ONLY the gyro's yaw rate ---
+    # orientation excluded on purpose: Gazebo's simulated orientation is a
+    # perfect fused value a raw IMU wouldn't give you (REP-145 territory,
+    # doc 17 §4) — fusing it would hide exactly the drift this node exists to
+    # correct. linear_acceleration excluded for now: noisy, and not needed for
+    # what we're solving (wheel-slip heading drift), so not worth the added
+    # tuning surface yet.
+    imu0: /imu
+    imu0_config: [false, false, false,
+                  false, false, false,
+                  false, false, false,
+                  false, false, true,
+                  false, false, false]
+    imu0_differential: false
+    imu0_relative: false
+    imu0_remove_gravitational_acceleration: true

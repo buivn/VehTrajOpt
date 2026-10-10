@@ -22,4 +22,12 @@ data/testingEnv/*
 results/log_file.txt
 results/collision_cresults/scene5/*
 results/scene6/*heck2.txt
-```
+
+# ROS 2 / colcon workspace artifacts
+ros2_ws/build/
+ros2_ws/install/
+ros2_ws/log/
+ros2_ws/results/*_ticks.csv
+ros2_ws/results/*.done
+__pycache__/
+*.pyc

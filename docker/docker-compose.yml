@@ -1,0 +1,29 @@
+services:
+  vto:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: vehtrajopt:jazzy
+    container_name: vehtrajopt
+    # GPU via nvidia-container-toolkit
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    environment:
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+    volumes:
+      # X11 for rviz2 / gz-sim GUI on the host display
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      # mount the whole repo (core planner + ros2_ws) live
+      - ../:/workspace
+    network_mode: host
+    stdin_open: true
+    tty: true
+    # run: xhost +local:root   on the host first, then: docker compose run --rm vto
